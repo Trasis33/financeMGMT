@@ -13,12 +13,37 @@
 </template>
 
 <script setup lang="ts">
-const { initAuth, isInitialized } = useAuth()
+const { initAuth, isInitialized, isAuthenticated } = useAuth()
 
 // Initialize auth state before rendering the app
-onMounted(async () => {
-  await initAuth()
-})
+if (process.client) {
+  onMounted(async () => {
+    console.log('App mounted in browser, initializing auth...', {
+      isInitialized: isInitialized.value,
+      isAuthenticated: isAuthenticated.value
+    })
+
+    try {
+      await initAuth()
+      console.log('Auth initialization complete:', {
+        isInitialized: isInitialized.value,
+        isAuthenticated: isAuthenticated.value
+      })
+    } catch (error) {
+      console.error('Auth initialization failed:', error)
+    }
+  })
+
+  // Watch for auth state changes
+  watch([isInitialized, isAuthenticated], ([newInit, newAuth]) => {
+    console.log('Auth state changed:', {
+      isInitialized: newInit,
+      isAuthenticated: newAuth
+    })
+  })
+} else {
+  console.log('App initialized in SSR context')
+}
 </script>
 
 <style>

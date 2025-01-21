@@ -16,7 +16,13 @@
       "request": "launch",
       "name": "Launch Firefox",
       "url": "http://localhost:3000",
-      "webRoot": "${workspaceFolder}"
+      "webRoot": "${workspaceFolder}",
+      "pathMappings": [
+        {
+          "url": "http://localhost:3000/_nuxt/middleware",
+          "path": "${workspaceFolder}/server/src/controllers"
+        }
+      ]
     }
   ],
   "compounds": [

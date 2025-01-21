@@ -18,6 +18,20 @@ model User {
   transactions          Transaction[]
   createdSplitExpenses  SplitExpense[]         @relation("Creator")
   splitExpenses         SplitExpenseParticipant[]
+  refreshTokens         RefreshTokens[]          // Add this relation
+}
+
+model RefreshTokens {
+  id          Int      @id @default(autoincrement())
+  token       String   @unique
+  userId      Int
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  lastUsedAt  DateTime @default(now())
+  isRevoked   Boolean  @default(false)
+  userAgent   String?  // Store browser/device info
+  ipAddress   String?  // Store IP for security tracking
 }
 
 model Transaction {
