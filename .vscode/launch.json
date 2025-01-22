@@ -19,6 +19,10 @@
       "webRoot": "${workspaceFolder}",
       "pathMappings": [
         {
+          "url": "http://localhost:3000/_nuxt/composables",
+          "path": "${workspaceFolder}/client/composables"
+        },
+        {
           "url": "http://localhost:3000/_nuxt/middleware",
           "path": "${workspaceFolder}/server/src/controllers"
         }

@@ -1,49 +1,35 @@
 <template>
   <NuxtLayout>
-    <template v-if="isInitialized">
-      <NuxtLoadingIndicator color="#0EA5E9" />
-      <NuxtPage />
-    </template>
-    <template v-else>
-      <div class="min-h-screen flex items-center justify-center">
-        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
-      </div>
-    </template>
+    <NuxtLoadingIndicator color="#0EA5E9" />
+    <ClientOnly>
+      <Suspense>
+        <template #default>
+          <div v-if="isInitialized">
+            <NuxtPage />
+          </div>
+          <div v-else class="min-h-screen flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+          </div>
+        </template>
+        <template #fallback>
+          <div class="min-h-screen flex items-center justify-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-600"></div>
+          </div>
+        </template>
+      </Suspense>
+    </ClientOnly>
   </NuxtLayout>
 </template>
 
 <script setup lang="ts">
-const { initAuth, isInitialized, isAuthenticated } = useAuth()
+const { initAuth, isInitialized } = useAuth()
 
-// Initialize auth state before rendering the app
-if (process.client) {
-  onMounted(async () => {
-    console.log('App mounted in browser, initializing auth...', {
-      isInitialized: isInitialized.value,
-      isAuthenticated: isAuthenticated.value
-    })
-
-    try {
-      await initAuth()
-      console.log('Auth initialization complete:', {
-        isInitialized: isInitialized.value,
-        isAuthenticated: isAuthenticated.value
-      })
-    } catch (error) {
-      console.error('Auth initialization failed:', error)
-    }
-  })
-
-  // Watch for auth state changes
-  watch([isInitialized, isAuthenticated], ([newInit, newAuth]) => {
-    console.log('Auth state changed:', {
-      isInitialized: newInit,
-      isAuthenticated: newAuth
-    })
-  })
-} else {
-  console.log('App initialized in SSR context')
-}
+// Initialize auth only on client side
+onMounted(async () => {
+  if (!isInitialized.value) {
+    await initAuth()
+  }
+})
 </script>
 
 <style>

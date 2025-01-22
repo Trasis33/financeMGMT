@@ -7,6 +7,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import authRoutes from './routes/auth';
 import transactionRoutes from './routes/transactions';
 import splitExpenseRoutes from './routes/splitExpenses';
+import usersRoutes from './routes/users';
 
 dotenv.config();
 
@@ -51,6 +52,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/split-expenses', splitExpenseRoutes);
+app.use('/api/users', usersRoutes);
 
 // Error handling middleware
 const errorHandler: ErrorRequestHandler = (err, req, res, next) => {

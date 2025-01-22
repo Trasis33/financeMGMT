@@ -19,7 +19,7 @@ const asyncHandler = (handler) => {
 // Public routes
 router.post('/login', asyncHandler(auth_1.login));
 router.post('/register', asyncHandler(auth_1.register));
-router.post('/refresh', asyncHandler(auth_1.refresh));
+router.get('/refresh', asyncHandler(auth_1.refresh));
 // Protected routes (require authentication)
 router.use(auth_2.authMiddleware);
 router.post('/logout', asyncHandler(auth_1.logout));

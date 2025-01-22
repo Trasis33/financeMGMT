@@ -317,3 +317,137 @@ export const deleteSplitExpense = async (
     next(error);
   }
 };
+
+interface Balance {
+  userId: number;
+  userName: string;
+  netBalance: number;
+  owes: Array<{
+    userId: number;
+    userName: string;
+    amount: number;
+  }>;
+  isOwed: Array<{
+    userId: number;
+    userName: string;
+    amount: number;
+  }>;
+}
+
+export const getBalances = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const userId = req.userId;
+
+    // Get all split expenses where the user is a participant
+    type SplitExpenseWithParticipants = {
+      id: number;
+      amount: number;
+      creatorId: number;
+      participants: Array<{
+        userId: number;
+        share: number;
+        user: {
+          id: number;
+          name: string;
+        };
+      }>;
+    };
+
+    const expenses = await prisma.splitExpense.findMany({
+      where: {
+        participants: {
+          some: {
+            userId
+          }
+        }
+      },
+      include: {
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Calculate balances
+    const balances = new Map<number, Balance>();
+
+    // Initialize balances for all users involved in expenses
+    expenses.forEach((expense: SplitExpenseWithParticipants) => {
+      expense.participants.forEach((participant: { userId: number; share: number; user: { id: number; name: string } }) => {
+        const { id: userId, name: userName } = participant.user;
+        if (!balances.has(userId)) {
+          balances.set(userId, {
+            userId,
+            userName,
+            netBalance: 0,
+            owes: [],
+            isOwed: []
+          });
+        }
+      });
+    });
+
+    // Calculate amounts owed/owing
+    expenses.forEach((expense: SplitExpenseWithParticipants) => {
+      const paidByUserId = expense.creatorId;
+      const totalAmount = expense.amount;
+
+      expense.participants.forEach((participant: { userId: number; share: number; user: { id: number; name: string } }) => {
+        const participantShare = totalAmount * participant.share;
+        const participantUserId = participant.userId;
+
+        if (participantUserId !== paidByUserId) {
+          // Update the participant's balance (they owe the payer)
+          const participantBalance = balances.get(participantUserId)!;
+          participantBalance.netBalance -= participantShare;
+
+          // Update the payer's balance (they are owed by the participant)
+          const payerBalance = balances.get(paidByUserId)!;
+          payerBalance.netBalance += participantShare;
+
+          // Record the debt relationship
+          participantBalance.owes.push({
+            userId: paidByUserId,
+            userName: balances.get(paidByUserId)!.userName,
+            amount: participantShare
+          });
+
+          payerBalance.isOwed.push({
+            userId: participantUserId,
+            userName: participantBalance.userName,
+            amount: participantShare
+          });
+        }
+      });
+    });
+
+    // Convert Map to array and round numbers
+    const balanceArray = Array.from(balances.values()).map(balance => ({
+      ...balance,
+      netBalance: Math.round(balance.netBalance * 100) / 100,
+      owes: balance.owes.map(debt => ({
+        ...debt,
+        amount: Math.round(debt.amount * 100) / 100
+      })),
+      isOwed: balance.isOwed.map(credit => ({
+        ...credit,
+        amount: Math.round(credit.amount * 100) / 100
+      }))
+    }));
+
+    res.json(balanceArray);
+  } catch (error) {
+    next(error);
+  }
+};

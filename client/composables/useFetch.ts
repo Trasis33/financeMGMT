@@ -1,6 +1,7 @@
 import type { UseFetchOptions } from 'nuxt/app'
+import type { AuthResponse } from '~/types/auth'
 
-export function useApiFetch<T>(path: string, options: UseFetchOptions<T> = {}) {
+export function useApiFetch<T = AuthResponse>(path: string, options: UseFetchOptions<T> = {}) {
   const config = useRuntimeConfig()
   const token = useState('token')
 

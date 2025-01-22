@@ -63,7 +63,14 @@ export const useSplitExpenses = () => {
 
       if (!response.ok) throw new Error('Failed to fetch split expenses')
 
-      return await response.json() as SplitExpense[]
+      const data = await response.json()
+      // Map the participants array to shares array to match frontend structure
+      return data.expenses.map((expense: any) => ({
+        ...expense,
+        shares: expense.participants,
+        paidBy: expense.creatorId,
+        payer: expense.creator
+      })) as SplitExpense[]
     } catch (error) {
       console.error('Error fetching split expenses:', error)
       throw error

@@ -148,9 +148,34 @@
 </template>
 
 <script setup lang="ts">
+interface User {
+  id: number
+  name: string
+  email: string
+}
+
+const clickHandler = ref<((e: MouseEvent) => void) | null>(null)
+
+onMounted(() => {
+  clickHandler.value = (e: MouseEvent) => {
+    const target = e.target as HTMLElement
+    if (!target.closest('.user-menu')) {
+      isUserMenuOpen.value = false
+    }
+  }
+  document.addEventListener('click', clickHandler.value)
+})
+
+onUnmounted(() => {
+  if (clickHandler.value) {
+    document.removeEventListener('click', clickHandler.value)
+    clickHandler.value = null
+  }
+})
+
 const router = useRouter()
 const route = useRoute()
-const user = useState('user')
+const user = useState<User>('user')
 
 const navigationItems = [
   { name: 'Dashboard', path: '/dashboard' },
@@ -165,7 +190,7 @@ const userInitials = computed(() => {
   if (!user.value?.name) return '?'
   return user.value.name
     .split(' ')
-    .map(n => n[0])
+    .map((n: string) => n[0])
     .join('')
     .toUpperCase()
 })
@@ -176,21 +201,9 @@ const handleLogout = async () => {
   isUserMenuOpen.value = false
 }
 
-// Close menus when clicking outside
-onMounted(() => {
-  if (process.client) {
-    document.addEventListener('click', (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (!target.closest('.user-menu')) {
-        isUserMenuOpen.value = false
-      }
-    })
-  }
-})
-
 // Close menus on route change
-watch(route, () => {
+watch(() => route.fullPath, () => {
   isUserMenuOpen.value = false
   isMobileMenuOpen.value = false
-})
+}, { immediate: false })
 </script>

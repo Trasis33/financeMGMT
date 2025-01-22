@@ -207,7 +207,11 @@
 const route = useRoute()
 const config = useRuntimeConfig()
 const token = useState('token')
-const currentUser = useState('user')
+interface User {
+  id: number;
+  name: string;
+}
+const currentUser = useState<User>('user')
 const { createSplitExpense, updateSplitExpense } = useSplitExpenses()
 
 definePageMeta({
@@ -226,7 +230,7 @@ const form = ref({
 const errors = ref<Record<string, string>>({})
 const errorMessage = ref('')
 const isLoading = ref(false)
-const availableUsers = ref([])
+const availableUsers = ref<User[]>([])
 
 // Load users for share selection
 const loadUsers = async () => {
@@ -291,7 +295,7 @@ const isUserSelected = (userId: number, currentIndex: number) => {
 
 // Add new share
 const addShare = () => {
-  form.value.shares.push({ userId: '', amount: '' })
+  form.value.shares.push({ userId: 0, amount: '' })
 }
 
 // Remove share

@@ -112,8 +112,8 @@ definePageMeta({
   middleware: ['auth']
 })
 
-const { login } = useAuth()
 
+const { login } = useAuth()
 const email = ref('')
 const password = ref('')
 const errors = ref<Record<string, string>>({})
@@ -156,4 +156,5 @@ const handleSubmit = async () => {
   } finally {
     isLoading.value = false
   }
-}</script>
+}
+</script>

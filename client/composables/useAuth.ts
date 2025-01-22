@@ -28,12 +28,13 @@ export const useAuth = () => {
   const isAuthenticated = computed(() => !!user.value && !!token.value)
 
   // Initialize auth state
-  const initAuth = async () => {
+  const initAuth = async (): Promise<boolean> => {
     isLoading.value = true
     try {
-      await initSession()
+      return await initSession()
     } catch (err) {
       console.error('Auth initialization failed:', err)
+      return false
     } finally {
       isInitialized.value = true
       isLoading.value = false
@@ -41,54 +42,63 @@ export const useAuth = () => {
   }
 
   // Initialize session from stored token
-  const initSession = async () => {
+  const initSession = async (): Promise<boolean> => {
     console.log('Initializing session...')
 
     // Skip token check during SSR
     if (!process.client) {
       console.log('Skipping session initialization during SSR')
-      return
+      return false
     }
 
     try {
       const storedToken = localStorage.getItem('auth_token')
       if (!storedToken) {
         console.log('No stored token found')
-        return
+        return false
       }
 
       console.log('Found stored token, attempting to refresh session')
-      await refreshSession()
+      return await refreshSession()
     } catch (error) {
       console.error('Session initialization error:', error)
       if (process.client) {
         clearSession()
       }
+      return false
     }
   }
 
   // Refresh session
   const refreshSession = async () => {
-    console.log('Attempting to refresh session')
+    console.log('Attempting to refresh session');
     try {
       const { data, error: apiError } = await useApiFetch<AuthResponse>('/api/auth/refresh', {
         method: 'GET',
         credentials: 'include'
-      })
+      });
       
       if (apiError.value) {
-        console.error('Session refresh failed:', apiError.value)
-        throw new Error(apiError.value.message || 'Session refresh failed')
+        console.error('Session refresh failed:', apiError.value);
+        if (apiError.value.status === 401) {
+          clearSession();
+        } else if (apiError.value.status === 500) {
+          console.error('Server configuration error during refresh');
+        }
+        throw new Error(apiError.value.data?.message || 'Session refresh failed');
       }
 
       if (data.value) {
-        console.log('Session refresh successful')
-        const { user: userData, token: authToken } = data.value
-        setSession(userData, authToken)
+        console.log('Session refresh successful');
+        const { user: userData, token: authToken } = data.value;
+        setSession(userData, authToken);
+        return true;
       }
+      return false;
     } catch (err) {
-      console.error('Session refresh error:', err)
-      throw new Error('Failed to refresh session')
+      console.error('Session refresh error:', err);
+      clearSession();
+      throw new Error('Failed to refresh session');
     }
   }
 
@@ -219,25 +229,35 @@ export const useAuth = () => {
     }
   }
 
-  // Auto-refresh token before expiry
-  onMounted(() => {
-    // Initial session check
-    initAuth()
+  const setupAuthAutoRefresh = () => {
+    let refreshInterval: NodeJS.Timeout | null = null;
+    
+    const startRefresh = () => {
+      if (!process.client) return;
+      if (refreshInterval) return;
+      
+      refreshInterval = setInterval(async () => {
+        try {
+          await refreshSession();
+        } catch (error) {
+          console.error('Auto-refresh failed, stopping interval');
+          stopRefresh();
+        }
+      }, 14 * 60 * 1000); // Refresh every 14 minutes
+    }
 
-    // Set up periodic refresh
-    const refreshInterval = setInterval(() => {
-      if (isAuthenticated.value) {
-        refreshSession().catch(console.error)
+    const stopRefresh = () => {
+      if (refreshInterval) {
+        clearInterval(refreshInterval)
+        refreshInterval = null
       }
-    }, 14 * 60 * 1000) // Refresh every 14 minutes (just before the 15-minute expiry)
+    }
 
-    // Clean up interval on component unmount
-    onUnmounted(() => {
-      clearInterval(refreshInterval)
-    })
-  })
+    return { startRefresh, stopRefresh }
+  }
 
   return {
+    setupAuthAutoRefresh,
     user,
     token,
     isLoading,

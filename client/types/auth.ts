@@ -9,6 +9,17 @@ export interface AuthState {
   token: string | null;
 }
 
+export interface AuthResponse {
+  data?: {
+    user: User;
+    token: string;
+  };
+  error?: {
+    message: string;
+    statusCode: number;
+  };
+}
+
 export interface LoginCredentials {
   email: string;
   password: string;

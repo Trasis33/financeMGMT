@@ -6,7 +6,8 @@ import {
   getSplitExpense,
   createSplitExpense,
   updateSplitExpense,
-  deleteSplitExpense
+  deleteSplitExpense,
+  getBalances
 } from '../controllers/splitExpenses';
 
 const router = Router();
@@ -36,6 +37,9 @@ router.use(authMiddleware);
 // Basic routes
 router.get('/', asyncHandler(getSplitExpenses));
 router.post('/', asyncHandler(createSplitExpense));
+
+// Balances route must come before ID-based routes to avoid parameter collision
+router.get('/balances', asyncHandler(getBalances));
 
 // ID-based routes
 router.get('/:id', asyncHandler<IdParam>(getSplitExpense));

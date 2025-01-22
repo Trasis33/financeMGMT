@@ -165,11 +165,43 @@ definePageMeta({
   middleware: ['auth']
 })
 
-const { fetchSplitExpenses, getBalances, settleExpense, deleteSplitExpense } = useSplitExpenses()
-const userId = computed(() => useState('user').value?.id)
+export interface SplitExpense {
+  id: string | number
+  description: string
+  amount: number
+  paidBy: string | number
+  payer?: { name: string }
+  shares: Array<{
+    userId: string | number
+    amount: number
+    settled: boolean
+  }>
+}
 
-const splitExpenses = ref([])
-const balances = ref([])
+export interface Balance {
+  userId: string | number,
+  userName: string
+  netBalance: number
+  owes: Owes[]
+  isOwed: Owes[]
+}
+
+export interface Owes {
+  userId: string | number
+  userName: string
+  amount: number
+}
+
+const { fetchSplitExpenses, getBalances, settleExpense, deleteSplitExpense } = useSplitExpenses()
+interface User {
+  id: string;
+  // add other user properties as needed
+}
+
+const userId = computed(() => useState<User>('user').value?.id)
+
+const splitExpenses = ref<SplitExpense[]>([])
+const balances = ref<Balance[]>([])
 const isLoading = ref(false)
 
 // Load split expenses and balances
@@ -191,23 +223,27 @@ const loadData = async () => {
 
 // Get user's share of an expense
 const getUserShare = (expense: any) => {
+  if (!expense?.shares) return 0
   const userShare = expense.shares.find((share: any) => share.userId === userId.value)
   return userShare ? userShare.amount : 0
 }
 
 // Check if expense is settled for current user
 const isExpenseSettled = (expense: any) => {
+  if (!expense?.shares) return true
   const userShare = expense.shares.find((share: any) => share.userId === userId.value)
   return userShare ? userShare.settled : true
 }
 
 // Check if expense can be edited
 const canEdit = (expense: any) => {
+  if (!expense?.shares) return false
   return expense.shares.every((share: any) => !share.settled || share.userId === userId.value)
 }
 
 // Check if expense can be deleted
 const canDelete = (expense: any) => {
+  if (!expense?.shares) return false
   return expense.shares.every((share: any) => !share.settled || share.userId === userId.value)
 }
 
