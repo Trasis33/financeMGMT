@@ -1,40 +1,22 @@
 <script setup lang="ts">
 import { onMounted, onUnmounted, ref } from 'vue'
 const { initAuth, isAuthenticated, refreshSession } = useAuth()
-const refreshInterval = ref<ReturnType<typeof setInterval> | undefined>()
-
-const startRefreshInterval = () => {
-  if (!refreshInterval.value) {
-    refreshInterval.value = setInterval(() => {
-      refreshSession().catch(console.error)
-    }, 14 * 60 * 1000) // 14 minutes
-  }
-}
-
-const stopRefreshInterval = () => {
-  if (refreshInterval.value) {
-    clearInterval(refreshInterval.value)
-    refreshInterval.value = undefined
-  }
-}
+const { setupAuthAutoRefresh } = useAuth()
+const { startRefresh, stopRefresh } = setupAuthAutoRefresh()
 
 onMounted(async () => {
   const success = await initAuth()
   if (success && isAuthenticated.value) {
-    startRefreshInterval()
+    startRefresh()
   }
 
   watch(isAuthenticated, (authenticated) => {
     if (authenticated) {
-      startRefreshInterval()
+      startRefresh()
     } else {
-      stopRefreshInterval()
+      stopRefresh()
     }
   })
-})
-
-onUnmounted(() => {
-  stopRefreshInterval()
 })
 </script>
 

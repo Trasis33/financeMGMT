@@ -44,6 +44,16 @@ export const useAuth = () => {
   // Initialize session from stored token
   const initSession = async (): Promise<boolean> => {
     console.log('Initializing session...')
+    
+    // Clear any expired tokens
+    if (process.client) {
+      const tokenExpiry = localStorage.getItem('auth_token_expiry')
+      if (tokenExpiry && new Date(tokenExpiry) < new Date()) {
+        console.log('Clearing expired token')
+        clearSession()
+        return false
+      }
+    }
 
     // Skip token check during SSR
     if (!process.client) {
@@ -107,7 +117,20 @@ export const useAuth = () => {
     user.value = userData
     token.value = authToken
     if (process.client) {
-      localStorage.setItem('auth_token', authToken)
+      try {
+        localStorage.setItem('auth_token', authToken)
+        // Store token expiry (14 days from now)
+        const expiryDate = new Date()
+        expiryDate.setDate(expiryDate.getDate() + 14)
+        localStorage.setItem('auth_token_expiry', expiryDate.toISOString())
+        
+        // Force update headers for immediate API access
+        useApiFetch('/api/_', { method: 'HEAD' }) // Dummy request to update headers
+      } catch (e) {
+        console.error('Failed to store auth token:', e)
+        clearSession()
+        throw new Error('Failed to persist authentication')
+      }
     }
   }
 
@@ -230,26 +253,26 @@ export const useAuth = () => {
   }
 
   const setupAuthAutoRefresh = () => {
-    let refreshInterval: NodeJS.Timeout | null = null;
+    const refreshInterval = ref<number>()
     
     const startRefresh = () => {
-      if (!process.client) return;
-      if (refreshInterval) return;
+      if (!process.client) return
+      if (refreshInterval.value) return
       
-      refreshInterval = setInterval(async () => {
+      refreshInterval.value = window.setInterval(async () => {
         try {
-          await refreshSession();
+          await refreshSession()
         } catch (error) {
-          console.error('Auto-refresh failed, stopping interval');
-          stopRefresh();
+          console.error('Auto-refresh failed, stopping interval')
+          stopRefresh()
         }
-      }, 14 * 60 * 1000); // Refresh every 14 minutes
+      }, 14 * 60 * 1000) // 14 minutes
     }
 
     const stopRefresh = () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval)
-        refreshInterval = null
+      if (refreshInterval.value) {
+        window.clearInterval(refreshInterval.value)
+        refreshInterval.value = undefined
       }
     }
 

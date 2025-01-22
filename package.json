@@ -12,5 +12,9 @@
   },
   "devDependencies": {
     "concurrently": "^8.2.0"
+  },
+  "dependencies": {
+    "@vueuse/core": "^12.5.0",
+    "@vueuse/nuxt": "^12.5.0"
   }
 }

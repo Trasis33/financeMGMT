@@ -178,6 +178,8 @@
 </template>
 
 <script setup lang="ts">
+import { until } from '@vueuse/core'
+
 definePageMeta({
   layout: 'default',
   middleware: ['auth']
@@ -224,9 +226,16 @@ const formatDate = (date: string) => {
 const route = useRoute()
 
 // Fetch data
+const { isInitialized, isAuthenticated } = useAuth()
 const { data, pending, error, refresh } = useAsyncData<DashboardData>(
   'dashboard',
   async () => {
+    // Wait for auth to fully initialize
+    await until(isInitialized).toBe(true)
+    
+    // Don't fetch data if not authenticated
+    if (!isAuthenticated.value) return { transactions: [], monthlyData: { balance: 0, income: 0, expenses: 0 } }
+    
     const { fetchTransactions, fetchMonthlyReports, getCurrentMonthData } = useTransactions()
 
     // Fetch data in parallel
@@ -249,9 +258,20 @@ const { data, pending, error, refresh } = useAsyncData<DashboardData>(
   }
 )
 
+const refreshInterval = ref<NodeJS.Timeout>()
+
 onMounted(() => {
-  // Any side effects or initializations can be placed here
-  console.log('Component mounted');
+  refreshInterval.value = setInterval(() => {
+    if (isAuthenticated.value) {
+      refresh()
+    }
+  }, 30000) // Refresh every 30 seconds
+})
+
+onUnmounted(() => {
+  if (refreshInterval.value) {
+    clearInterval(refreshInterval.value)
+  }
 })
 
 // Refresh data when returning to dashboard
