@@ -2,6 +2,7 @@
 export default defineNuxtConfig({
   devtools: { enabled: true },
   modules: ['@nuxtjs/tailwindcss', '@vueuse/nuxt'],
+
   app: {
     head: {
       title: 'Finance Tracker',
@@ -16,20 +17,26 @@ export default defineNuxtConfig({
       mode: 'out-in'
     }
   },
+
   runtimeConfig: {
     public: {
       apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:3333'
     }
   },
+
   typescript: {
     strict: true
   },
+
   experimental: {
     payloadExtraction: false
   },
+
   nitro: {
     routeRules: {
       '/api/**': { proxy: process.env.API_BASE_URL || 'http://localhost:3333' }
     }
-  }
+  },
+
+  compatibilityDate: '2025-01-23'
 })

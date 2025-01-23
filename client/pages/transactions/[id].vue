@@ -7,12 +7,12 @@
     </div>
 
     <!-- Loading state -->
-    <div v-if="isLoadingLocal" class="flex justify-center items-center py-8">
+    <div v-if="isLoading" class="flex justify-center items-center py-8">
       <div class="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
     </div>
 
     <!-- Error state -->
-    <div v-else-if="localError" class="rounded-md bg-red-50 p-4 mt-6">
+    <div v-else-if="error" class="rounded-md bg-red-50 p-4 mt-6">
       <div class="flex">
         <div class="flex-shrink-0">
           <svg class="h-5 w-5 text-red-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
@@ -20,7 +20,7 @@
           </svg>
         </div>
         <div class="ml-3">
-          <h3 class="text-sm font-medium text-red-800">{{ localError }}</h3>
+          <h3 class="text-sm font-medium text-red-800">{{ error }}</h3>
         </div>
       </div>
     </div>
@@ -123,7 +123,7 @@
           type="button"
           @click="handleDelete"
           class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-          :disabled="isLoadingLocal"
+          :disabled="isLoading"
         >
           Delete
         </button>
@@ -135,10 +135,10 @@
         </NuxtLink>
         <button
           type="submit"
-          :disabled="isLoadingLocal"
+          :disabled="isLoading"
           class="inline-flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50"
         >
-          <template v-if="isLoadingLocal">
+          <template v-if="isLoading">
             <svg
               class="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
               xmlns="http://www.w3.org/2000/svg"
@@ -172,6 +172,8 @@
 
 <script setup lang="ts">
 import type { Transaction } from '~/types/api'
+import { useTransactionsStore } from '~/stores/transactions'
+import { ref } from 'vue'
 
 definePageMeta({
   layout: 'default',
@@ -180,39 +182,12 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
+const transactionsStore = useTransactionsStore()
 
-interface TransactionResponse {
-  transaction: Transaction;
-}
-
-const isLoadingLocal = ref(false)
-const localError = ref<string | null>(null)
 const transactionId = computed(() => parseInt(route.params.id as string))
-
-const incomeCategories = [
-  'Salary',
-  'Freelance',
-  'Investment',
-  'Business',
-  'Gift',
-  'Other Income'
-]
-
-const expenseCategories = [
-  'Housing',
-  'Transportation',
-  'Food',
-  'Utilities',
-  'Insurance',
-  'Healthcare',
-  'Debt',
-  'Entertainment',
-  'Shopping',
-  'Personal Care',
-  'Education',
-  'Gifts',
-  'Other Expenses'
-]
+const { transactionCategories, isLoading, error } = storeToRefs(transactionsStore)
+const incomeCategories = computed(() => transactionCategories.value.income)
+const expenseCategories = computed(() => transactionCategories.value.expense)
 
 const form = ref({
   type: 'EXPENSE' as 'INCOME' | 'EXPENSE',
@@ -229,31 +204,21 @@ const maxDate = new Date().toISOString().split('T')[0]
 
 // Load transaction data
 const loadTransaction = async () => {
-  isLoadingLocal.value = true
-  localError.value = null
+  await transactionsStore.fetchTransaction(transactionId.value)
+  
+  if (error.value) {
+    return
+  }
 
-  try {
-    const { data, error } = await useApiFetch<TransactionResponse>(`/api/transactions/${transactionId.value}`)
-    
-    if (error.value) {
-      throw new Error('Failed to load transaction')
+  const transaction = transactionsStore.getTransactionById(transactionId.value)
+  if (transaction) {
+    form.value = {
+      type: transaction.type as 'INCOME' | 'EXPENSE',
+      amount: transaction.amount.toString(),
+      date: new Date(transaction.date).toISOString().split('T')[0],
+      description: transaction.description,
+      category: transaction.category
     }
-
-    if (data.value?.transaction) {
-      const transaction = data.value.transaction
-      form.value = {
-        type: transaction.type as 'INCOME' | 'EXPENSE',
-        amount: transaction.amount.toString(),
-        date: new Date(transaction.date).toISOString().split('T')[0],
-        description: transaction.description,
-        category: transaction.category
-      }
-    }
-  } catch (err) {
-    localError.value = err instanceof Error ? err.message : 'Failed to load transaction'
-    console.error('Error loading transaction:', err)
-  } finally {
-    isLoadingLocal.value = false
   }
 }
 
@@ -309,32 +274,20 @@ const validateForm = () => {
 const handleSubmit = async () => {
   if (!validateForm()) return
 
-  isLoadingLocal.value = true
-  localError.value = null
-
   try {
-    const { error } = await useApiFetch(`/api/transactions/${transactionId.value}`, {
-      method: 'PUT',
-      body: {
-        type: form.value.type,
-        amount: Number(form.value.amount),
-        date: form.value.date,
-        description: form.value.description.trim(),
-        category: form.value.category
-      }
+    await transactionsStore.updateTransaction({
+      id: transactionId.value,
+      type: form.value.type,
+      amount: Number(form.value.amount),
+      date: form.value.date,
+      description: form.value.description.trim(),
+      category: form.value.category
     })
-
-    if (error.value) {
-      throw new Error('Failed to update transaction')
-    }
 
     // Redirect back to transactions list
     router.push('/transactions')
   } catch (err) {
-    localError.value = err instanceof Error ? err.message : 'Failed to update transaction'
     console.error('Error updating transaction:', err)
-  } finally {
-    isLoadingLocal.value = false
   }
 }
 
@@ -343,24 +296,12 @@ const handleDelete = async () => {
     return
   }
 
-  isLoadingLocal.value = true
-  localError.value = null
-
   try {
-    const { error } = await useApiFetch(`/api/transactions/${transactionId.value}`, {
-      method: 'DELETE'
-    })
-
-    if (error.value) {
-      throw new Error('Failed to delete transaction')
-    }
+    await transactionsStore.deleteTransaction(transactionId.value)
 
     // Redirect back to transactions list
     router.push('/transactions')
   } catch (err) {
-    localError.value = err instanceof Error ? err.message : 'Failed to delete transaction'
     console.error('Error deleting transaction:', err)
-  } finally {
-    isLoadingLocal.value = false
   }
 }</script>

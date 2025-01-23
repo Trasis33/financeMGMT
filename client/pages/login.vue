@@ -7,7 +7,7 @@
       Or
       <NuxtLink
         to="/register"
-        class="font-medium text-primary-600 hover:text-primary-500"
+        class="font-medium text-primary-600 hover:text-primary-500 focus:outline-none"
       >
         create a new account
       </NuxtLink>
@@ -107,18 +107,22 @@
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from '~/stores/auth'
+
 definePageMeta({
   layout: 'guest',
   middleware: ['auth']
 })
 
 
-const { login } = useAuth()
+const authStore = useAuthStore()
+const { isLoading, error: authError } = storeToRefs(authStore)
+const { login } = authStore
 const email = ref('')
 const password = ref('')
 const errors = ref<Record<string, string>>({})
 const errorMessage = ref('')
-const isLoading = ref(false)
 
 const validateForm = () => {
   errors.value = {}
@@ -139,6 +143,7 @@ const validateForm = () => {
 
   return isValid
 }
+
 
 const handleSubmit = async () => {
   if (!validateForm()) return

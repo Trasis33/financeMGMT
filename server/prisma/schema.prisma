@@ -64,6 +64,7 @@ model SplitExpenseParticipant {
   splitExpenseId Int
   userId         Int
   share          Float       // Share of the expense (e.g., 0.5 for 50%)
+  settled        Boolean     @default(false) // Whether the participant has settled their share
   splitExpense   SplitExpense @relation(fields: [splitExpenseId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   createdAt      DateTime     @default(now())

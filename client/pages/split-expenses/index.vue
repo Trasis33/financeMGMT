@@ -192,7 +192,8 @@ export interface Owes {
   amount: number
 }
 
-const { fetchSplitExpenses, getBalances, settleExpense, deleteSplitExpense } = useSplitExpenses()
+const splitExpensesStore = useSplitExpensesStore()
+const { expenses, balances, isLoading, error } = storeToRefs(splitExpensesStore)
 interface User {
   id: string;
   // add other user properties as needed
@@ -201,8 +202,8 @@ interface User {
 const userId = computed(() => useState<User>('user').value?.id)
 
 const splitExpenses = ref<SplitExpense[]>([])
-const balances = ref<Balance[]>([])
-const isLoading = ref(false)
+// const balances = ref<Balance[]>([])
+// const isLoading = ref(false)
 
 // Load split expenses and balances
 const loadData = async () => {

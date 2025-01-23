@@ -1,15 +1,25 @@
 import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
 
-export default defineNuxtRouteMiddleware((to) => {
-  const { isAuthenticated, isInitialized } = useAuth()
+export default defineNuxtRouteMiddleware(async (to) => {
+  const authStore = useAuthStore()
+  
+  // Skip auth check for registration page
+  if (to.path === '/register') {
+    return
+  }
 
-  // Only run on client side after auth initialization
-  if (process.client && isInitialized.value) {
-    if (to.path !== '/login' && !isAuthenticated.value) {
+  // Ensure auth is initialized
+  await authStore.initAuth()
+
+  // Only run on client side
+  if (process.client) {
+    // Redirect to login if not authenticated
+    if (to.path !== '/login' && !authStore.isAuthenticated) {
       return navigateTo('/login');
     }
     
-    if (to.path === '/login' && isAuthenticated.value) {
+    // Redirect to dashboard if already authenticated
+    if (to.path === '/login' && authStore.isAuthenticated) {
       return navigateTo('/dashboard');
     }
   }

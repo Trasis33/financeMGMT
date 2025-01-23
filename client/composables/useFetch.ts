@@ -1,5 +1,5 @@
-import type { UseFetchOptions } from 'nuxt/app'
-import type { AuthResponse } from '~/types/auth'
+import { navigateTo, useFetch, useRuntimeConfig, useState, type UseFetchOptions } from 'nuxt/app'
+import type { AuthResponse } from '../types/auth'
 
 export function useApiFetch<T = AuthResponse>(path: string, options: UseFetchOptions<T> = {}) {
   const config = useRuntimeConfig()

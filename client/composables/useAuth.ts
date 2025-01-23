@@ -124,8 +124,7 @@ export const useAuth = () => {
         expiryDate.setDate(expiryDate.getDate() + 14)
         localStorage.setItem('auth_token_expiry', expiryDate.toISOString())
         
-        // Force update headers for immediate API access
-        useApiFetch('/api/_', { method: 'HEAD' }) // Dummy request to update headers
+        // The next API request will use the new token automatically
       } catch (e) {
         console.error('Failed to store auth token:', e)
         clearSession()
@@ -254,17 +253,24 @@ export const useAuth = () => {
 
   const setupAuthAutoRefresh = () => {
     const refreshInterval = ref<number>()
-    
+    const isRefreshing = ref(false)
+  
     const startRefresh = () => {
-      if (!process.client) return
-      if (refreshInterval.value) return
-      
+      // Only run in browser and if not already running
+      if (!process.client || refreshInterval.value) return
+    
       refreshInterval.value = window.setInterval(async () => {
+        // Skip if already refreshing or not authenticated
+        if (isRefreshing.value || !isAuthenticated.value) return
+      
+        isRefreshing.value = true
         try {
           await refreshSession()
         } catch (error) {
-          console.error('Auto-refresh failed, stopping interval')
+          console.error('Auto-refresh failed:', error)
           stopRefresh()
+        } finally {
+          isRefreshing.value = false
         }
       }, 14 * 60 * 1000) // 14 minutes
     }
@@ -275,6 +281,11 @@ export const useAuth = () => {
         refreshInterval.value = undefined
       }
     }
+
+    // Cleanup interval when auth composable is no longer used
+    onUnmounted(() => {
+      stopRefresh()
+    })
 
     return { startRefresh, stopRefresh }
   }

@@ -1,23 +1,20 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-const { initAuth, isAuthenticated, refreshSession } = useAuth()
-const { setupAuthAutoRefresh } = useAuth()
-const { startRefresh, stopRefresh } = setupAuthAutoRefresh()
+const authStore = useAuthStore()
 
 onMounted(async () => {
-  const success = await initAuth()
-  if (success && isAuthenticated.value) {
-    startRefresh()
+  try {
+    await authStore.initAuth()
+  } catch (error) {
+    console.error('Auth initialization error:', error)
   }
-
-  watch(isAuthenticated, (authenticated) => {
-    if (authenticated) {
-      startRefresh()
-    } else {
-      stopRefresh()
-    }
-  })
 })
+
+onUnmounted(() => {
+  authStore.stopAutoRefresh()
+})
+
+// Ensure auth is initialized before rendering
+await authStore.initAuth()
 </script>
 
 <template>

@@ -31,8 +31,8 @@
           <div class="ml-3 relative">
             <button
               type="button"
-              @click="isUserMenuOpen = !isUserMenuOpen"
-              class="flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-primary-300"
+              @click="toggleUserMenu"
+              class="user-menu-button flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-primary-300"
             >
               <span class="sr-only">Open user menu</span>
               <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
@@ -156,10 +156,17 @@ interface User {
 
 const clickHandler = ref<((e: MouseEvent) => void) | null>(null)
 
+const toggleUserMenu = (e: MouseEvent) => {
+  // Prevent the click from propagating to document
+  e.stopPropagation()
+  isUserMenuOpen.value = !isUserMenuOpen.value
+}
+
 onMounted(() => {
   clickHandler.value = (e: MouseEvent) => {
     const target = e.target as HTMLElement
-    if (!target.closest('.user-menu')) {
+    // Close menu if clicking outside
+    if (!target.closest('.user-menu') && !target.closest('.user-menu-button')) {
       isUserMenuOpen.value = false
     }
   }

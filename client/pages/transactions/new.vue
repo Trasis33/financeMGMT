@@ -149,7 +149,8 @@ definePageMeta({
   middleware: ['auth']
 })
 
-const { createTransaction, error: apiError, isLoading } = useTransactions()
+const transactionsStore = useTransactionsStore()
+const { createTransaction, isLoading, error: apiError, transactionCategories } = storeToRefs(transactionsStore)
 const router = useRouter()
 
 const incomeCategories = [

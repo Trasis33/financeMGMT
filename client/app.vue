@@ -22,12 +22,18 @@
 </template>
 
 <script setup lang="ts">
-const { initAuth, isInitialized } = useAuth()
+import { storeToRefs } from 'pinia'
+import { useAuthStore } from './stores/auth';
+const authStore = useAuthStore()
+const { isInitialized } = storeToRefs(authStore)
 
-// Initialize auth only on client side
-onMounted(async () => {
-  if (!isInitialized.value) {
-    await initAuth()
+// Initialize auth on app start
+await authStore.initAuth()
+
+// Watch for auth state changes
+watch(isInitialized, async (initialized) => {
+  if (!initialized) {
+    await authStore.initAuth()
   }
 })
 </script>

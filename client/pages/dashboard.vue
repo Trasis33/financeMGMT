@@ -227,34 +227,21 @@ const route = useRoute()
 
 // Fetch data
 const { isInitialized, isAuthenticated } = useAuth()
-const { data, pending, error, refresh } = useAsyncData<DashboardData>(
-  'dashboard',
-  async () => {
-    // Wait for auth to fully initialize
-    await until(isInitialized).toBe(true)
-    
-    // Don't fetch data if not authenticated
-    if (!isAuthenticated.value) return { transactions: [], monthlyData: { balance: 0, income: 0, expenses: 0 } }
-    
-    const { fetchTransactions, fetchMonthlyReports, getCurrentMonthData } = useTransactions()
+const transactionsStore = useTransactionsStore()
+const { getTransactions, getMonthlyReports, getCurrentMonthData } = storeToRefs(transactionsStore)
 
-    // Fetch data in parallel
-    await Promise.all([
-      fetchTransactions(5),
-      fetchMonthlyReports()
-    ])
+// Initialize data
+onMounted(async () => {
+  await transactionsStore.init()
+})
 
-    // Return the processed data
-    const transactionState = useState<TransactionState>('transactions')
-    return {
-      transactions: transactionState.value?.transactions || [],
-      monthlyData: getCurrentMonthData.value
+// Refresh data when returning to dashboard
+watch(
+  () => route.path,
+  (newPath) => {
+    if (newPath === '/dashboard') {
+      transactionsStore.fetchTransactions(5)
     }
-  },
-  {
-    server: false,
-    lazy: true,
-    immediate: true
   }
 )
 

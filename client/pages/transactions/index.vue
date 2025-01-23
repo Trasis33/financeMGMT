@@ -95,25 +95,22 @@ definePageMeta({
   middleware: ['auth']
 })
 
-const { transactions, fetchTransactions, isLoading, error } = useTransactions()
+const transactionsStore = useTransactionsStore()
+const { transactions, isLoading, error } = storeToRefs(transactionsStore)
+const { fetchTransactions, formatCurrency, formatDate } = transactionsStore
 
-// Format utilities
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD'
-  }).format(amount)
-}
+// Load transactions and initialize store
+onMounted(async () => {
+  await transactionsStore.init()
+  await transactionsStore.fetchTransactions()
+})
 
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric'
-  })
-}
-
-// Load transactions
-onMounted(() => {
-  fetchTransactions()
-})</script>
+// Refresh data when returning to transactions list
+watch(
+  () => route.path,
+  (newPath) => {
+    if (newPath === '/transactions') {
+      transactionsStore.fetchTransactions()
+    }
+  }
+)</script>

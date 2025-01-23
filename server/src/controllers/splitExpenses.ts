@@ -102,7 +102,7 @@ export const createSplitExpense = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { description, amount, date, participantIds, shares } = req.body;
+    const { description, amount, shares } = req.body;
     const creatorId = req.userId;
 
     if (!creatorId) {
@@ -110,8 +110,17 @@ export const createSplitExpense = async (
       return;
     }
 
-    // Validate participants
+    // Validate required fields
+    if (!description || !amount || !shares) {
+      res.status(400).json({ message: 'Missing required fields' });
+      return;
+    }
+
+    // Validate shares
+    const participantIds = shares.map(share => share.userId);
     const uniqueParticipantIds = [...new Set([...participantIds, creatorId])];
+    
+    // Validate participants exist
     const participants = await prisma.user.findMany({
       where: {
         id: {
@@ -125,17 +134,10 @@ export const createSplitExpense = async (
       return;
     }
 
-    // Calculate shares
-    const defaultShare = 1 / uniqueParticipantIds.length;
-    const participantShares = uniqueParticipantIds.reduce((acc, userId) => {
-      acc[userId] = shares?.[userId] ?? defaultShare;
-      return acc;
-    }, {} as { [key: number]: number });
-
-    // Validate shares sum to 1
-    const shareSum = Object.values(participantShares).reduce((sum, share) => sum + share, 0);
-    if (Math.abs(shareSum - 1) > 0.0001) {
-      res.status(400).json({ message: 'Share proportions must sum to 1' });
+    // Calculate total shares
+    const totalShares = shares.reduce((sum, share) => sum + share.amount, 0);
+    if (Math.abs(totalShares - amount) > 0.01) {
+      res.status(400).json({ message: 'Total shares must equal the total amount' });
       return;
     }
 
@@ -144,12 +146,13 @@ export const createSplitExpense = async (
       data: {
         description,
         amount,
-        date: new Date(date),
+        date: new Date(), // Add current date as default
         creatorId,
         participants: {
-          create: uniqueParticipantIds.map(userId => ({
-            userId,
-            share: participantShares[userId]
+          create: shares.map(share => ({
+            userId: share.userId,
+            share: share.amount,
+            settled: false
           }))
         }
       },

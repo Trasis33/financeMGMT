@@ -212,7 +212,8 @@ interface User {
   name: string;
 }
 const currentUser = useState<User>('user')
-const { createSplitExpense, updateSplitExpense } = useSplitExpenses()
+const splitExpensesStore = useSplitExpensesStore()
+const { createSplitExpense, updateSplitExpense, isLoading, error } = storeToRefs(splitExpensesStore)
 
 definePageMeta({
   middleware: ['auth']
@@ -229,7 +230,7 @@ const form = ref({
 })
 const errors = ref<Record<string, string>>({})
 const errorMessage = ref('')
-const isLoading = ref(false)
+// const isLoading = ref(false)
 const availableUsers = ref<User[]>([])
 
 // Load users for share selection
@@ -300,8 +301,17 @@ const addShare = () => {
 
 // Remove share
 const removeShare = (index: number) => {
-  if (form.value.shares.length > 2) {
-    form.value.shares.splice(index, 1)
+  // Ensure at least 2 shares remain
+  if (form.value.shares.length <= 2) {
+    return
+  }
+  
+  // Remove the share
+  form.value.shares.splice(index, 1)
+  
+  // Recalculate shares if needed
+  if (form.value.amount) {
+    splitEvenly()
   }
 }
 
@@ -321,14 +331,18 @@ const splitEvenly = () => {
 // Form validation
 const validateForm = () => {
   errors.value = {}
+  errorMessage.value = ''
   let isValid = true
 
-  if (!form.value.description) {
+  // Validate description
+  if (!form.value.description?.trim()) {
     errors.value.description = 'Description is required'
     isValid = false
   }
 
-  if (!form.value.amount || Number(form.value.amount) <= 0) {
+  // Validate amount
+  const amount = Number(form.value.amount)
+  if (isNaN(amount) || amount <= 0) {
     errors.value.amount = 'Please enter a valid amount'
     isValid = false
   }
@@ -341,17 +355,24 @@ const validateForm = () => {
       isValid = false
     }
 
-    if (!share.amount || Number(share.amount) <= 0) {
+    const shareAmount = Number(share.amount)
+    if (isNaN(shareAmount) || shareAmount <= 0) {
       errors.value[`shares.${index}.amount`] = 'Please enter a valid amount'
       isValid = false
     } else {
-      totalShares += Number(share.amount)
+      totalShares += shareAmount
     }
   })
 
   // Validate total shares equals total amount
-  if (Math.abs(totalShares - Number(form.value.amount)) > 0.01) {
+  if (Math.abs(totalShares - amount) > 0.01) {
     errorMessage.value = 'Total shares must equal the total amount'
+    isValid = false
+  }
+
+  // Validate at least 2 participants
+  if (form.value.shares.length < 2) {
+    errorMessage.value = 'At least two participants are required'
     isValid = false
   }
 

@@ -25,9 +25,12 @@ interface SplitExpense {
 }
 
 interface CreateSplitExpenseData {
-  amount: number;
+  amount: number | string;
   description: string;
-  shares: Omit<Share, 'settled'>[];
+  shares: Array<{
+    userId: number;
+    amount: number | string;
+  }>;
 }
 
 interface Balance {
@@ -79,6 +82,16 @@ export const useSplitExpenses = () => {
 
   const createSplitExpense = async (data: CreateSplitExpenseData) => {
     try {
+      // Transform data to match backend expectations
+      const requestData = {
+        description: data.description,
+        amount: Number(data.amount),
+        shares: data.shares.map(share => ({
+          userId: share.userId,
+          amount: Number(share.amount)
+        }))
+      }
+
       const response = await fetch(
         `${config.public.apiBaseUrl}/api/split-expenses`,
         {
@@ -87,13 +100,22 @@ export const useSplitExpenses = () => {
             'Authorization': `Bearer ${token.value}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(data)
+          body: JSON.stringify(requestData)
         }
       )
 
-      if (!response.ok) throw new Error('Failed to create split expense')
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || 'Failed to create split expense')
+      }
 
-      return await response.json() as SplitExpense
+      const result = await response.json()
+      return {
+        ...result.expense,
+        shares: result.expense.participants,
+        paidBy: result.expense.creatorId,
+        payer: result.expense.creator
+      } as SplitExpense
     } catch (error) {
       console.error('Error creating split expense:', error)
       throw error
