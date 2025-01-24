@@ -8,6 +8,7 @@
       <NuxtLink
         to="/register"
         class="font-medium text-primary-600 hover:text-primary-500"
+        role="button"
       >
         create a new account
       </NuxtLink>
