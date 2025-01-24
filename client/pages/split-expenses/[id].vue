@@ -278,16 +278,38 @@ onMounted(async () => {
 
       if (!response.ok) throw new Error('Failed to fetch split expense')
 
-      const splitExpense = await response.json()
+      const data = await response.json()
+      interface Participant {
+        userId: number;
+        share: number;
+      }
+
+      interface SplitExpense {
+        id: number;
+        description: string;
+        amount: number;
+        date: string;
+        participants: Participant[];
+      }
+
+      const splitExpense: SplitExpense = data.expense;
+      
+      if (!splitExpense) throw new Error('Split expense not found')
+
+      console.log('Loaded split expense:', splitExpense) // Debug log
+
+      // Map participants to shares format
+      const shares = splitExpense.participants?.map((participant: any) => ({
+        userId: participant.userId,
+        amount: (participant.share * splitExpense.amount).toFixed(2)
+      })) || []
+
       form.value = {
         description: splitExpense.description,
-        amount: splitExpense.amount,
-        date: splitExpense.date,
-        participantIds: splitExpense.participants.map((p: any) => p.userId),
-        shares: splitExpense.participants.map((p: any) => ({
-          userId: p.userId,
-          amount: (p.share * splitExpense.amount).toFixed(2)
-        }))
+        amount: splitExpense.amount.toString(),
+        date: new Date(splitExpense.date).toISOString().split('T')[0],
+        participantIds: shares.map(s => s.userId),
+        shares: shares
       }
     } catch (error) {
       console.error('Error loading split expense:', error)
@@ -401,35 +423,46 @@ const handleSubmit = async () => {
   try {
     const totalAmount = Number(form.value.amount);
     const sharesArray = form.value.shares.map(share => ({
-      userId: share.userId,
+      userId: Number(share.userId), // Ensure userId is a number
       amount: Number(share.amount)
     }));
     
-    // Convert to format expected by API
-    const participantIds = sharesArray.map(share => share.userId);
-    const shares = sharesArray.reduce((acc, share) => {
-      acc[share.userId] = share.amount / totalAmount;
-      return acc;
-    }, {} as { [key: number]: number });
+    console.log('Form data before submission:', {
+      description: form.value.description,
+      amount: totalAmount,
+      shares: sharesArray
+    });
 
+    // Prepare API payload
     const data = {
       description: form.value.description,
       amount: totalAmount,
       date: form.value.date,
-      participantIds,
-      shares
+      participantIds: sharesArray.map(share => share.userId),
+      shares: Object.fromEntries(
+        sharesArray.map(share => [
+          share.userId,
+          Number((share.amount / totalAmount).toFixed(4)) // Calculate share percentage with 4 decimal precision
+        ])
+      )
     };
 
+    console.log('API payload:', data);
+
+    let result;
     if (isEdit.value) {
-      await updateSplitExpense(Number(route.params.id), data)
+      result = await updateSplitExpense(Number(route.params.id), data)
     } else {
-      await createSplitExpense(data)
+      result = await createSplitExpense(data)
     }
 
+    console.log('API response:', result);
     navigateTo('/split-expenses')
   } catch (error: any) {
-    errorMessage.value = error.message || 'An error occurred while saving the split expense'
+    console.error('Split expense error:', error);
+    errorMessage.value = error.response?.data?.message || error.message || 'Failed to save split expense'
   } finally {
     isLoading.value = false
   }
-}</script>
+}
+</script>

@@ -174,6 +174,7 @@ export interface SplitExpense {
   shares: Array<{
     userId: string | number
     amount: number
+    share: number
     settled: boolean
   }>
 }
@@ -212,7 +213,13 @@ const loadData = async () => {
       fetchSplitExpenses(),
       getBalances()
     ])
-    splitExpenses.value = expensesData
+    splitExpenses.value = expensesData.map(expense => ({
+      ...expense,
+      shares: expense.shares.map(share => ({
+        ...share,
+        share: share.amount / expense.amount
+      }))
+    }))
     balances.value = balancesData
   } catch (error) {
     console.error('Error loading data:', error)
@@ -222,10 +229,11 @@ const loadData = async () => {
 }
 
 // Get user's share of an expense
-const getUserShare = (expense: any) => {
+const getUserShare = (expense: SplitExpense) => {
   if (!expense?.shares) return 0
-  const userShare = expense.shares.find((share: any) => share.userId === userId.value)
-  return userShare ? userShare.amount : 0
+  const userShare = expense.shares.find(share => share.userId === userId.value)
+  // Use the share percentage to calculate the actual amount
+  return userShare ? Number((userShare.share * expense.amount).toFixed(2)) : 0
 }
 
 // Check if expense is settled for current user
