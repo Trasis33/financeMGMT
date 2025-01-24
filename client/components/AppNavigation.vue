@@ -28,10 +28,10 @@
 
         <!-- User menu -->
         <div class="hidden sm:ml-6 sm:flex sm:items-center">
-          <div class="ml-3 relative">
+          <div class="ml-3 relative user-menu" ref="userMenuRef">
             <button
               type="button"
-              @click="isUserMenuOpen = !isUserMenuOpen"
+              @click.stop="isUserMenuOpen = !isUserMenuOpen"
               class="flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-primary-300"
             >
               <span class="sr-only">Open user menu</span>
@@ -45,6 +45,7 @@
             <!-- Dropdown menu -->
             <div
               v-if="isUserMenuOpen"
+              @click.stop
               class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100"
               role="menu"
             >
@@ -155,11 +156,11 @@ interface User {
 }
 
 const clickHandler = ref<((e: MouseEvent) => void) | null>(null)
+const userMenuRef = ref<HTMLElement | null>(null)
 
 onMounted(() => {
   clickHandler.value = (e: MouseEvent) => {
-    const target = e.target as HTMLElement
-    if (!target.closest('.user-menu')) {
+    if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
       isUserMenuOpen.value = false
     }
   }
@@ -197,8 +198,13 @@ const userInitials = computed(() => {
 
 const handleLogout = async () => {
   const { logout } = useAuth()
-  await logout()
-  isUserMenuOpen.value = false
+  try {
+    await logout()
+    await router.push('/login')
+  } finally {
+    isUserMenuOpen.value = false
+    isMobileMenuOpen.value = false
+  }
 }
 
 // Close menus on route change
