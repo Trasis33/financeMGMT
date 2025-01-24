@@ -25,9 +25,11 @@ interface SplitExpense {
 }
 
 interface CreateSplitExpenseData {
-  amount: number;
   description: string;
-  shares: Omit<Share, 'settled'>[];
+  amount: number;
+  date: string;
+  participantIds: number[];
+  shares: { [userId: number]: number };
 }
 
 interface Balance {
