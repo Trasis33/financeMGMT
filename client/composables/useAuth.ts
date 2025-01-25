@@ -1,21 +1,4 @@
-import type { User } from '~/types/api'
-
-interface LoginCredentials {
-  email: string
-  password: string
-  rememberMe?: boolean
-}
-
-interface RegisterCredentials {
-  email: string
-  password: string
-  name: string
-}
-
-interface AuthResponse {
-  user: User
-  token: string
-}
+import type { User, LoginCredentials, RegisterCredentials, AuthResponse } from '~/types/auth'
 
 export const useAuth = () => {
   const user = useState<User | null>('user', () => null)
@@ -68,6 +51,8 @@ export const useAuth = () => {
         return false
       }
 
+      // Set the token before attempting refresh
+      token.value = storedToken
       console.log('Found stored token, attempting to refresh session')
       return await refreshSession()
     } catch (error) {
@@ -83,32 +68,34 @@ export const useAuth = () => {
   const refreshSession = async () => {
     console.log('Attempting to refresh session');
     try {
-      const { data, error: apiError } = await useApiFetch<AuthResponse>('/api/auth/refresh', {
+      const config = useRuntimeConfig()
+      const response = await $fetch<AuthResponse>('/api/auth/refresh', {
+        baseURL: config.public.apiBaseUrl,
         method: 'GET',
-        credentials: 'include'
+        credentials: 'include',
+        headers: token.value
+          ? { Authorization: `Bearer ${token.value}` }
+          : undefined
       });
-      
-      if (apiError.value) {
-        console.error('Session refresh failed:', apiError.value);
-        if (apiError.value.status === 401) {
-          clearSession();
-        } else if (apiError.value.status === 500) {
-          console.error('Server configuration error during refresh');
-        }
-        throw new Error(apiError.value.data?.message || 'Session refresh failed');
+
+      console.log('Refresh response:', response);
+
+      const userData = response.data?.user || response.user;
+      const authToken = response.data?.token || response.token;
+
+      if (!userData || !authToken) {
+        console.error('Invalid refresh response format');
+        clearSession();
+        return false;
       }
 
-      if (data.value) {
-        console.log('Session refresh successful');
-        const { user: userData, token: authToken } = data.value;
-        setSession(userData, authToken);
-        return true;
-      }
-      return false;
+      console.log('Setting session with refreshed data:', { userData, authToken });
+      setSession(userData, authToken);
+      return true;
     } catch (err) {
       console.error('Session refresh error:', err);
       clearSession();
-      throw new Error('Failed to refresh session');
+      return false;
     }
   }
 
@@ -123,9 +110,6 @@ export const useAuth = () => {
         const expiryDate = new Date()
         expiryDate.setDate(expiryDate.getDate() + 14)
         localStorage.setItem('auth_token_expiry', expiryDate.toISOString())
-        
-        // Force update headers for immediate API access
-        useApiFetch('/api/_', { method: 'HEAD' }) // Dummy request to update headers
       } catch (e) {
         console.error('Failed to store auth token:', e)
         clearSession()
@@ -154,29 +138,44 @@ export const useAuth = () => {
     error.value = null
 
     try {
-      const { data, error: apiError } = await useApiFetch<AuthResponse>('/api/auth/login', {
+      console.log('Attempting login...')
+      const config = useRuntimeConfig()
+      
+      const response = await $fetch<AuthResponse>('/api/auth/login', {
+        baseURL: config.public.apiBaseUrl,
         method: 'POST',
         body: credentials,
         credentials: 'include'
       })
 
-      if (apiError.value) {
-        throw new Error(apiError.value.message || 'Login failed')
+      console.log('Login response:', response)
+
+      // Changed this check to handle both nested and direct response formats
+      const userData = response.data?.user || response.user
+      const authToken = response.data?.token || response.token
+
+      if (!userData || !authToken) {
+        throw new Error('Invalid response format')
       }
 
-      if (data.value) {
-        const { user: userData, token: authToken } = data.value
-        setSession(userData, authToken)
+      console.log('Setting session with:', { userData, authToken })
+      setSession(userData, authToken)
 
-        // Get redirect path or default to dashboard
-        const redirect = useState<string>('redirect')
-        const redirectPath = redirect.value || '/dashboard'
-        redirect.value = '' // Clear stored redirect
-        
-        // Navigate to the redirect path
-        await navigateTo(redirectPath)
+      // Initialize auth state immediately after login
+      isInitialized.value = true
+      
+      // Get redirect path or default to dashboard
+      const redirect = useState<string>('redirect')
+      const redirectPath = redirect.value || '/dashboard'
+      redirect.value = '' // Clear stored redirect
+      
+      console.log('Redirecting to:', redirectPath)
+      // Force a full page reload to reset all states
+      if (process.client) {
+        window.location.replace(redirectPath)
       }
     } catch (err) {
+      console.error('Login error:', err)
       error.value = err instanceof Error ? err.message : 'Login failed'
       throw err
     } finally {
@@ -200,8 +199,8 @@ export const useAuth = () => {
         throw new Error(apiError.value.message || 'Registration failed')
       }
 
-      if (data.value) {
-        const { user: userData, token: authToken } = data.value
+      if (data.value && data.value.data) {
+        const { user: userData, token: authToken } = data.value.data;
         setSession(userData, authToken)
         await navigateTo('/dashboard')
       }

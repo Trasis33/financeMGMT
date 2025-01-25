@@ -204,6 +204,8 @@
 </template>
 
 <script setup lang="ts">
+import type { Participant, SimpleSplitExpense } from '~/types/SplitExpense'
+
 const route = useRoute()
 const config = useRuntimeConfig()
 const token = useState('token')
@@ -279,28 +281,15 @@ onMounted(async () => {
       if (!response.ok) throw new Error('Failed to fetch split expense')
 
       const data = await response.json()
-      interface Participant {
-        userId: number;
-        share: number;
-      }
-
-      interface SplitExpense {
-        id: number;
-        description: string;
-        amount: number;
-        date: string;
-        participants: Participant[];
-      }
-
-      const splitExpense: SplitExpense = data.expense;
+      const splitExpense: SimpleSplitExpense = data.expense;
       
       if (!splitExpense) throw new Error('Split expense not found')
 
       console.log('Loaded split expense:', splitExpense) // Debug log
 
       // Map participants to shares format
-      const shares = splitExpense.participants?.map((participant: any) => ({
-        userId: participant.userId,
+      const shares = splitExpense.participants?.map((participant: Participant) => ({
+        userId: Number(participant.userId),
         amount: (participant.share * splitExpense.amount).toFixed(2)
       })) || []
 
@@ -308,7 +297,7 @@ onMounted(async () => {
         description: splitExpense.description,
         amount: splitExpense.amount.toString(),
         date: new Date(splitExpense.date).toISOString().split('T')[0],
-        participantIds: shares.map(s => s.userId),
+        participantIds: shares.map(s => Number(s.userId)),
         shares: shares
       }
     } catch (error) {

@@ -10,19 +10,24 @@ export interface AuthState {
 }
 
 export interface AuthResponse {
+  user: User;
+  token: string;
   data?: {
     user: User;
     token: string;
-  };
-  error?: {
-    message: string;
-    statusCode: number;
   };
 }
 
 export interface LoginCredentials {
   email: string;
   password: string;
+  rememberMe?: boolean;
+}
+
+export interface RegisterCredentials {
+  email: string;
+  password: string;
+  name: string;
 }
 
 export interface RegisterData extends LoginCredentials {

@@ -1,25 +1,46 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue'
-const { initAuth, isAuthenticated, refreshSession } = useAuth()
+const { initAuth, isAuthenticated, isInitialized } = useAuth()
 const { setupAuthAutoRefresh } = useAuth()
 const { startRefresh, stopRefresh } = setupAuthAutoRefresh()
 
 onMounted(async () => {
-  const success = await initAuth()
-  if (success && isAuthenticated.value) {
-    startRefresh()
+  console.log('AuthProvider mounted, current auth state:', {
+    isAuthenticated: isAuthenticated.value,
+    isInitialized: isInitialized.value
+  })
+  
+  if (!isInitialized.value) {
+    await initAuth()
+    console.log('Auth initialization completed:', {
+      isAuthenticated: isAuthenticated.value,
+      isInitialized: isInitialized.value
+    })
   }
 
-  watch(isAuthenticated, (authenticated) => {
-    if (authenticated) {
-      startRefresh()
-    } else {
-      stopRefresh()
-    }
-  })
+  if (isAuthenticated.value) {
+    startRefresh()
+  }
+})
+
+// Watch for authentication changes
+watch([isAuthenticated, isInitialized], ([authenticated, initialized]) => {
+  console.log('Auth state changed:', { authenticated, initialized })
+  
+  if (authenticated && initialized) {
+    startRefresh()
+  } else {
+    stopRefresh()
+  }
+})
+
+onUnmounted(() => {
+  stopRefresh()
 })
 </script>
 
 <template>
-  <slot />
+  <slot v-if="isInitialized" />
+  <div v-else class="h-16 flex items-center justify-center">
+    <div class="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-primary-600"></div>
+  </div>
 </template>
