@@ -1,35 +1,4 @@
-import type { Ref } from 'vue'
-
-interface Transaction {
-  id: number
-  date: string
-  description: string
-  amount: number
-  type: 'INCOME' | 'EXPENSE'
-  category: string
-}
-
-interface CreateTransaction {
-  date: string
-  description: string
-  amount: number
-  type: 'INCOME' | 'EXPENSE'
-  category: string
-}
-
-interface MonthlyReport {
-  month: string
-  income: number
-  expenses: number
-  balance: number
-}
-
-interface TransactionState {
-  transactions: Transaction[]
-  monthlyReports: MonthlyReport[]
-  isLoading: boolean
-  error: string | null
-}
+import type { TransactionState, Transaction, CreateTransaction, MonthlyReport } from '../types/TransactionState'
 
 export const useTransactions = () => {
   const state = useState<TransactionState>('transactions', () => {

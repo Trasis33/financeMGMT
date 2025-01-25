@@ -101,7 +101,7 @@
               type="button"
               @click="removeShare(index)"
               class="inline-flex items-center p-1.5 border border-transparent rounded-full text-red-600 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-              :disabled="form.shares.length <= 2"
+              :disabled="form.shares.length <= 1"
             >
               <svg
                 class="h-5 w-5"
@@ -204,6 +204,8 @@
 </template>
 
 <script setup lang="ts">
+import type { Participant, SimpleSplitExpense } from '~/types/SplitExpense'
+
 const route = useRoute()
 const config = useRuntimeConfig()
 const token = useState('token')
@@ -224,9 +226,9 @@ const isEdit = computed(() => !!route.params.id && route.params.id !== 'new')
 const form = ref({
   description: '',
   amount: '',
-  shares: [
-    { userId: currentUser.value?.id, amount: '' }
-  ]
+  date: new Date().toISOString().split('T')[0], // Add date field
+  participantIds: [] as number[],
+  shares: [] as Array<{ userId: number; amount: string }>
 })
 const errors = ref<Record<string, string>>({})
 const errorMessage = ref('')
@@ -258,6 +260,14 @@ const loadUsers = async () => {
 onMounted(async () => {
   await loadUsers()
 
+  // Initialize with current user if creating new
+  if (!isEdit.value && currentUser.value?.id) {
+    form.value.shares = [{
+      userId: currentUser.value.id,
+      amount: ''
+    }]
+  }
+
   if (isEdit.value) {
     try {
       const response = await fetch(
@@ -271,14 +281,25 @@ onMounted(async () => {
 
       if (!response.ok) throw new Error('Failed to fetch split expense')
 
-      const splitExpense = await response.json()
+      const data = await response.json()
+      const splitExpense: SimpleSplitExpense = data.expense;
+      
+      if (!splitExpense) throw new Error('Split expense not found')
+
+      console.log('Loaded split expense:', splitExpense) // Debug log
+
+      // Map participants to shares format
+      const shares = splitExpense.participants?.map((participant: Participant) => ({
+        userId: Number(participant.userId),
+        amount: (participant.share * splitExpense.amount).toFixed(2)
+      })) || []
+
       form.value = {
         description: splitExpense.description,
-        amount: splitExpense.amount,
-        shares: splitExpense.shares.map((share: any) => ({
-          userId: share.userId,
-          amount: share.amount
-        }))
+        amount: splitExpense.amount.toString(),
+        date: new Date(splitExpense.date).toISOString().split('T')[0],
+        participantIds: shares.map(s => Number(s.userId)),
+        shares: shares
       }
     } catch (error) {
       console.error('Error loading split expense:', error)
@@ -296,23 +317,17 @@ const isUserSelected = (userId: number, currentIndex: number) => {
 
 // Add new share
 const addShare = () => {
-  form.value.shares.push({ userId: 0, amount: '' })
+  if (availableUsers.value.length > 0) {
+    form.value.shares.push({
+      userId: availableUsers.value[0].id, // Set default to first available user
+      amount: ''
+    })
+  }
 }
 
 // Remove share
 const removeShare = (index: number) => {
-  // Ensure at least 2 shares remain
-  if (form.value.shares.length <= 2) {
-    return
-  }
-  
-  // Remove the share
   form.value.shares.splice(index, 1)
-  
-  // Recalculate shares if needed
-  if (form.value.amount) {
-    splitEvenly()
-  }
 }
 
 // Split amount evenly between all shares
@@ -321,10 +336,18 @@ const splitEvenly = () => {
   if (!amount) return
 
   const shareCount = form.value.shares.length
-  const evenShare = (amount / shareCount).toFixed(2)
+  const evenShare = amount / shareCount
+  const roundedShare = Math.round(evenShare * 100) / 100 // Proper rounding
   
-  form.value.shares.forEach(share => {
-    share.amount = evenShare
+  // Handle remainder distribution
+  const totalRounded = roundedShare * shareCount
+  const remainder = amount - totalRounded
+  
+  form.value.shares.forEach((share, index) => {
+    const adjustedAmount = index === 0 ? 
+      roundedShare + remainder : 
+      roundedShare
+    share.amount = adjustedAmount.toFixed(2)
   })
 }
 
@@ -333,40 +356,48 @@ const validateForm = () => {
   errors.value = {}
   errorMessage.value = ''
   let isValid = true
+  const totalAmount = Number(form.value.amount)
 
-  // Validate description
-  if (!form.value.description?.trim()) {
+  // Basic field validation
+  if (!form.value.description) {
     errors.value.description = 'Description is required'
     isValid = false
   }
 
-  // Validate amount
-  const amount = Number(form.value.amount)
-  if (isNaN(amount) || amount <= 0) {
+  if (!totalAmount || totalAmount <= 0) {
     errors.value.amount = 'Please enter a valid amount'
     isValid = false
   }
 
-  // Validate shares
-  let totalShares = 0
+  // Validate participants
+  const uniqueUserIds = new Set<number>()
   form.value.shares.forEach((share, index) => {
     if (!share.userId) {
       errors.value[`shares.${index}.userId`] = 'Please select a user'
       isValid = false
     }
-
-    const shareAmount = Number(share.amount)
-    if (isNaN(shareAmount) || shareAmount <= 0) {
-      errors.value[`shares.${index}.amount`] = 'Please enter a valid amount'
+    
+    if (uniqueUserIds.has(share.userId)) {
+      errors.value[`shares.${index}.userId`] = 'User already selected'
       isValid = false
-    } else {
-      totalShares += shareAmount
     }
+    uniqueUserIds.add(share.userId)
   })
 
-  // Validate total shares equals total amount
-  if (Math.abs(totalShares - amount) > 0.01) {
-    errorMessage.value = 'Total shares must equal the total amount'
+  // Validate shares
+  let totalShares = 0
+  form.value.shares.forEach((share, index) => {
+    const amount = Number(share.amount)
+    if (!amount || amount <= 0) {
+      errors.value[`shares.${index}.amount`] = 'Please enter a valid amount'
+      isValid = false
+    }
+    totalShares += amount
+  })
+
+  // Allow small rounding differences
+  if (Math.abs(totalShares - totalAmount) > 0.01) {
+    errorMessage.value = `Total shares (${totalShares.toFixed(2)}) must equal total amount (${totalAmount.toFixed(2)})`
     isValid = false
   }
 
@@ -387,25 +418,48 @@ const handleSubmit = async () => {
   errorMessage.value = ''
 
   try {
+    const totalAmount = Number(form.value.amount);
+    const sharesArray = form.value.shares.map(share => ({
+      userId: Number(share.userId), // Ensure userId is a number
+      amount: Number(share.amount)
+    }));
+    
+    console.log('Form data before submission:', {
+      description: form.value.description,
+      amount: totalAmount,
+      shares: sharesArray
+    });
+
+    // Prepare API payload
     const data = {
-      ...form.value,
-      amount: Number(form.value.amount),
-      shares: form.value.shares.map(share => ({
-        ...share,
-        amount: Number(share.amount)
-      }))
-    }
+      description: form.value.description,
+      amount: totalAmount,
+      date: form.value.date,
+      participantIds: sharesArray.map(share => share.userId),
+      shares: Object.fromEntries(
+        sharesArray.map(share => [
+          share.userId,
+          Number((share.amount / totalAmount).toFixed(4)) // Calculate share percentage with 4 decimal precision
+        ])
+      )
+    };
 
+    console.log('API payload:', data);
+
+    let result;
     if (isEdit.value) {
-      await updateSplitExpense(Number(route.params.id), data)
+      result = await updateSplitExpense(Number(route.params.id), data)
     } else {
-      await createSplitExpense(data)
+      result = await createSplitExpense(data)
     }
 
+    console.log('API response:', result);
     navigateTo('/split-expenses')
   } catch (error: any) {
-    errorMessage.value = error.message || 'An error occurred while saving the split expense'
+    console.error('Split expense error:', error);
+    errorMessage.value = error.response?.data?.message || error.message || 'Failed to save split expense'
   } finally {
     isLoading.value = false
   }
-}</script>
+}
+</script>

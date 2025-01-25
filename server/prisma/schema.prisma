@@ -67,6 +67,7 @@ model SplitExpenseParticipant {
   settled        Boolean     @default(false) // Whether the participant has settled their share
   splitExpense   SplitExpense @relation(fields: [splitExpenseId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  settled        Boolean      @default(false)  // Add this line
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

@@ -28,11 +28,11 @@
 
         <!-- User menu -->
         <div class="hidden sm:ml-6 sm:flex sm:items-center">
-          <div class="ml-3 relative">
+          <div class="ml-3 relative user-menu" ref="userMenuRef">
             <button
               type="button"
-              @click="toggleUserMenu"
-              class="user-menu-button flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-primary-300"
+              @click.stop="isUserMenuOpen = !isUserMenuOpen"
+              class="flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-primary-300"
             >
               <span class="sr-only">Open user menu</span>
               <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center">
@@ -45,6 +45,7 @@
             <!-- Dropdown menu -->
             <div
               v-if="isUserMenuOpen"
+              @click.stop
               class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 divide-y divide-gray-100"
               role="menu"
             >
@@ -155,18 +156,11 @@ interface User {
 }
 
 const clickHandler = ref<((e: MouseEvent) => void) | null>(null)
-
-const toggleUserMenu = (e: MouseEvent) => {
-  // Prevent the click from propagating to document
-  e.stopPropagation()
-  isUserMenuOpen.value = !isUserMenuOpen.value
-}
+const userMenuRef = ref<HTMLElement | null>(null)
 
 onMounted(() => {
   clickHandler.value = (e: MouseEvent) => {
-    const target = e.target as HTMLElement
-    // Close menu if clicking outside
-    if (!target.closest('.user-menu') && !target.closest('.user-menu-button')) {
+    if (userMenuRef.value && !userMenuRef.value.contains(e.target as Node)) {
       isUserMenuOpen.value = false
     }
   }
@@ -204,8 +198,13 @@ const userInitials = computed(() => {
 
 const handleLogout = async () => {
   const { logout } = useAuth()
-  await logout()
-  isUserMenuOpen.value = false
+  try {
+    await logout()
+    await router.push('/login')
+  } finally {
+    isUserMenuOpen.value = false
+    isMobileMenuOpen.value = false
+  }
 }
 
 // Close menus on route change

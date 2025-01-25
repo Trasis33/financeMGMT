@@ -1,53 +1,4 @@
-interface Share {
-  userId: number;
-  amount: number;
-  user?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-  settled: boolean;
-}
-
-interface SplitExpense {
-  id: number;
-  amount: number;
-  description: string;
-  paidBy: number;
-  shares: Share[];
-  createdAt: string;
-  updatedAt: string;
-  payer?: {
-    id: number;
-    name: string;
-    email: string;
-  };
-}
-
-interface CreateSplitExpenseData {
-  amount: number | string;
-  description: string;
-  shares: Array<{
-    userId: number;
-    amount: number | string;
-  }>;
-}
-
-interface Balance {
-  userId: number;
-  userName: string;
-  owes: {
-    userId: number;
-    userName: string;
-    amount: number;
-  }[];
-  isOwed: {
-    userId: number;
-    userName: string;
-    amount: number;
-  }[];
-  netBalance: number;
-}
+import type { SplitExpense, CreateSplitExpenseData, Balance } from "../types/SplitExpense";
 
 export const useSplitExpenses = () => {
   const config = useRuntimeConfig()
@@ -67,10 +18,13 @@ export const useSplitExpenses = () => {
       if (!response.ok) throw new Error('Failed to fetch split expenses')
 
       const data = await response.json()
-      // Map the participants array to shares array to match frontend structure
+      // Map the participants array to shares array and ensure amounts are calculated
       return data.expenses.map((expense: any) => ({
         ...expense,
-        shares: expense.participants,
+        shares: expense.participants.map((p: any) => ({
+          ...p,
+          amount: p.share * expense.amount // Calculate the actual amount
+        })),
         paidBy: expense.creatorId,
         payer: expense.creator
       })) as SplitExpense[]
@@ -82,16 +36,8 @@ export const useSplitExpenses = () => {
 
   const createSplitExpense = async (data: CreateSplitExpenseData) => {
     try {
-      // Transform data to match backend expectations
-      const requestData = {
-        description: data.description,
-        amount: Number(data.amount),
-        shares: data.shares.map(share => ({
-          userId: share.userId,
-          amount: Number(share.amount)
-        }))
-      }
-
+      console.log('Creating split expense with data:', data);
+      
       const response = await fetch(
         `${config.public.apiBaseUrl}/api/split-expenses`,
         {
@@ -104,18 +50,14 @@ export const useSplitExpenses = () => {
         }
       )
 
+      const result = await response.json()
+      
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.message || 'Failed to create split expense')
+        throw new Error(result.message || 'Failed to create split expense')
       }
 
-      const result = await response.json()
-      return {
-        ...result.expense,
-        shares: result.expense.participants,
-        paidBy: result.expense.creatorId,
-        payer: result.expense.creator
-      } as SplitExpense
+      console.log('Split expense created:', result);
+      return result
     } catch (error) {
       console.error('Error creating split expense:', error)
       throw error
@@ -205,12 +147,40 @@ export const useSplitExpenses = () => {
     }
   }
 
+  const fetchSplitExpense = async (id: number) => {
+    try {
+      const response = await fetch(
+        `${config.public.apiBaseUrl}/api/split-expenses/${id}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token.value}`
+          }
+        }
+      )
+
+      if (!response.ok) throw new Error('Failed to fetch split expense')
+
+      const data = await response.json()
+      if (!data.expense) throw new Error('Split expense not found')
+
+      // Transform the data to match the expected format
+      return {
+        ...data.expense,
+        shares: data.expense.participants || []
+      }
+    } catch (error) {
+      console.error('Error fetching split expense:', error)
+      throw error
+    }
+  }
+
   return {
     fetchSplitExpenses,
     createSplitExpense,
     updateSplitExpense,
     deleteSplitExpense,
     getBalances,
-    settleExpense
+    settleExpense,
+    fetchSplitExpense
   }
 }

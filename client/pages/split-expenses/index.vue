@@ -161,39 +161,13 @@
 </template>
 
 <script setup lang="ts">
+import type { SplitExpense, Balance, Owes } from '~/types/SplitExpense'
+
 definePageMeta({
   middleware: ['auth']
 })
 
-export interface SplitExpense {
-  id: string | number
-  description: string
-  amount: number
-  paidBy: string | number
-  payer?: { name: string }
-  shares: Array<{
-    userId: string | number
-    amount: number
-    settled: boolean
-  }>
-}
-
-export interface Balance {
-  userId: string | number,
-  userName: string
-  netBalance: number
-  owes: Owes[]
-  isOwed: Owes[]
-}
-
-export interface Owes {
-  userId: string | number
-  userName: string
-  amount: number
-}
-
-const splitExpensesStore = useSplitExpensesStore()
-const { expenses, balances, isLoading, error } = storeToRefs(splitExpensesStore)
+const { fetchSplitExpenses, getBalances, settleExpense, deleteSplitExpense } = useSplitExpenses()
 interface User {
   id: string;
   // add other user properties as needed
@@ -213,7 +187,13 @@ const loadData = async () => {
       fetchSplitExpenses(),
       getBalances()
     ])
-    splitExpenses.value = expensesData
+    splitExpenses.value = expensesData.map(expense => ({
+      ...expense,
+      shares: expense.shares.map(share => ({
+        ...share,
+        share: share.amount / expense.amount
+      }))
+    }))
     balances.value = balancesData
   } catch (error) {
     console.error('Error loading data:', error)
@@ -223,10 +203,11 @@ const loadData = async () => {
 }
 
 // Get user's share of an expense
-const getUserShare = (expense: any) => {
+const getUserShare = (expense: SplitExpense) => {
   if (!expense?.shares) return 0
-  const userShare = expense.shares.find((share: any) => share.userId === userId.value)
-  return userShare ? userShare.amount : 0
+  const userShare = expense.shares.find(share => share.userId === userId.value)
+  // Use the share percentage to calculate the actual amount
+  return userShare ? Number((userShare.share * expense.amount).toFixed(2)) : 0
 }
 
 // Check if expense is settled for current user
@@ -294,4 +275,5 @@ const getInitials = (name: string) => {
 // Load initial data
 onMounted(() => {
   loadData()
-})</script>
+})
+</script>
