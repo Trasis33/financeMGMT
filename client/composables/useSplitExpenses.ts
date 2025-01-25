@@ -46,7 +46,7 @@ export const useSplitExpenses = () => {
             'Authorization': `Bearer ${token.value}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(requestData)
+          body: JSON.stringify(data)
         }
       )
 
