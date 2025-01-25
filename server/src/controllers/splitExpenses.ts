@@ -7,6 +7,7 @@ interface SplitExpenseCreate {
   date: string;
   participantIds: number[];
   shares?: { [userId: number]: number };  // Optional custom share ratios
+  paidById: number; // Who paid for the expense
 }
 
 interface SplitExpenseUpdate {
@@ -15,6 +16,7 @@ interface SplitExpenseUpdate {
   date?: string;
   participantIds?: number[];
   shares?: { [userId: number]: number };
+  paidById?: number;
 }
 
 export const getSplitExpenses = async (
@@ -33,16 +35,15 @@ export const getSplitExpenses = async (
         }
       },
       include: {
-        creator: {
-          select: { id: true, name: true, email: true }
-        },
         participants: {
           include: {
             user: {
               select: { id: true, name: true, email: true }
             }
           }
-        }
+        },
+        creator: true,
+        paidBy: true
       },
       orderBy: { date: 'desc' }
     });
@@ -72,16 +73,15 @@ export const getSplitExpense = async (
         }
       },
       include: {
-        creator: {
-          select: { id: true, name: true, email: true }
-        },
         participants: {
           include: {
             user: {
               select: { id: true, name: true, email: true }
             }
           }
-        }
+        },
+        creator: true,
+        paidBy: true
       }
     });
 
@@ -102,7 +102,7 @@ export const createSplitExpense = async (
   next: NextFunction
 ): Promise<void> => {
   try {
-    const { description, amount, date, participantIds, shares } = req.body;
+    const { description, amount, date, participantIds, shares, paidById } = req.body;
     const creatorId = req.userId;
 
     if (!creatorId) {
@@ -122,6 +122,12 @@ export const createSplitExpense = async (
 
     if (participants.length !== uniqueParticipantIds.length) {
       res.status(400).json({ message: 'One or more participants not found' });
+      return;
+    }
+
+    // Validate payer exists and is a participant
+    if (!uniqueParticipantIds.includes(paidById)) {
+      res.status(400).json({ message: 'Payer must be a participant in the expense' });
       return;
     }
 
@@ -146,6 +152,7 @@ export const createSplitExpense = async (
         amount,
         date: new Date(date),
         creatorId,
+        paidById,
         participants: {
           create: uniqueParticipantIds.map(userId => ({
             userId,
@@ -154,16 +161,15 @@ export const createSplitExpense = async (
         }
       },
       include: {
-        creator: {
-          select: { id: true, name: true, email: true }
-        },
         participants: {
           include: {
             user: {
               select: { id: true, name: true, email: true }
             }
           }
-        }
+        },
+        creator: true,
+        paidBy: true
       }
     });
 
@@ -180,7 +186,7 @@ export const updateSplitExpense = async (
 ): Promise<void> => {
   try {
     const { id } = req.params;
-    const { description, amount, date, participantIds, shares } = req.body;
+    const { description, amount, date, participantIds, shares, paidById } = req.body;
     const userId = req.userId;
 
     if (!userId) {
@@ -208,7 +214,8 @@ export const updateSplitExpense = async (
     const updateData: any = {
       ...(description && { description }),
       ...(amount && { amount }),
-      ...(date && { date: new Date(date) })
+      ...(date && { date: new Date(date) }),
+      ...(paidById && { paidById })
     };
 
     // Update participants if provided
@@ -226,6 +233,12 @@ export const updateSplitExpense = async (
 
       if (participants.length !== uniqueParticipantIds.length) {
         res.status(400).json({ message: 'One or more participants not found' });
+        return;
+      }
+
+      // If paidById is being updated, validate they're a participant
+      if (paidById && !uniqueParticipantIds.includes(paidById)) {
+        res.status(400).json({ message: 'Payer must be a participant in the expense' });
         return;
       }
 
@@ -261,16 +274,15 @@ export const updateSplitExpense = async (
       where: { id: parseInt(id) },
       data: updateData,
       include: {
-        creator: {
-          select: { id: true, name: true, email: true }
-        },
         participants: {
           include: {
             user: {
               select: { id: true, name: true, email: true }
             }
           }
-        }
+        },
+        creator: true,
+        paidBy: true
       }
     });
 
@@ -342,21 +354,6 @@ export const getBalances = async (
   try {
     const userId = req.userId;
 
-    // Get all split expenses where the user is a participant
-    type SplitExpenseWithParticipants = {
-      id: number;
-      amount: number;
-      creatorId: number;
-      participants: Array<{
-        userId: number;
-        share: number;
-        user: {
-          id: number;
-          name: string;
-        };
-      }>;
-    };
-
     const expenses = await prisma.splitExpense.findMany({
       where: {
         participants: {
@@ -365,7 +362,10 @@ export const getBalances = async (
           }
         }
       },
-      include: {
+      select: {
+        id: true,
+        amount: true,
+        paidById: true,
         participants: {
           include: {
             user: {
@@ -383,8 +383,8 @@ export const getBalances = async (
     const balances = new Map<number, Balance>();
 
     // Initialize balances for all users involved in expenses
-    expenses.forEach((expense: SplitExpenseWithParticipants) => {
-      expense.participants.forEach((participant: { userId: number; share: number; user: { id: number; name: string } }) => {
+    expenses.forEach((expense) => {
+      expense.participants.forEach((participant) => {
         const { id: userId, name: userName } = participant.user;
         if (!balances.has(userId)) {
           balances.set(userId, {
@@ -399,11 +399,11 @@ export const getBalances = async (
     });
 
     // Calculate amounts owed/owing
-    expenses.forEach((expense: SplitExpenseWithParticipants) => {
-      const paidByUserId = expense.creatorId;
+    expenses.forEach((expense) => {
+      const paidByUserId = expense.paidById;
       const totalAmount = expense.amount;
 
-      expense.participants.forEach((participant: { userId: number; share: number; user: { id: number; name: string } }) => {
+      expense.participants.forEach((participant) => {
         const participantShare = totalAmount * participant.share;
         const participantUserId = participant.userId;
 

@@ -25,8 +25,9 @@ export const useSplitExpenses = () => {
           ...p,
           amount: p.share * expense.amount // Calculate the actual amount
         })),
-        paidBy: expense.creatorId,
-        payer: expense.creator
+        // Use actual payer information from the API
+        paidBy: expense.paidById,
+        payer: expense.paidBy
       })) as SplitExpense[]
     } catch (error) {
       console.error('Error fetching split expenses:', error)
@@ -46,7 +47,10 @@ export const useSplitExpenses = () => {
             'Authorization': `Bearer ${token.value}`,
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(data)
+          body: JSON.stringify({
+            ...data,
+            paidById: data.paidById // Include who paid for the expense
+          })
         }
       )
 
@@ -166,7 +170,12 @@ export const useSplitExpenses = () => {
       // Transform the data to match the expected format
       return {
         ...data.expense,
-        shares: data.expense.participants || []
+        shares: data.expense.participants.map((p: any) => ({
+          ...p,
+          amount: p.share * data.expense.amount
+        })),
+        paidBy: data.expense.paidById,
+        payer: data.expense.paidBy
       }
     } catch (error) {
       console.error('Error fetching split expense:', error)

@@ -10,28 +10,54 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const uuid_1 = require("uuid");
 const ACCESS_TOKEN_EXPIRY = '15m'; // 15 minutes
 const REFRESH_TOKEN_EXPIRY = '30d'; // 30 days
+const createCookieOptions = (maxAge) => ({
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    maxAge,
+    path: '/'
+});
 // Generate tokens
 const generateTokens = async (userId, rememberMe = false) => {
-    const accessToken = jsonwebtoken_1.default.sign({ userId }, process.env.JWT_SECRET, { expiresIn: ACCESS_TOKEN_EXPIRY });
+    const jwtSecret = process.env.JWT_SECRET;
+    const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
+    if (!jwtSecret || !jwtRefreshSecret) {
+        throw new Error('JWT secrets not configured');
+    }
+    // Create access token
+    const accessToken = jsonwebtoken_1.default.sign({ userId }, jwtSecret, {
+        expiresIn: ACCESS_TOKEN_EXPIRY
+    });
+    // Calculate expiry for refresh token
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + (rememberMe ? 30 : 1));
-    return await index_1.prisma.$transaction(async (tx) => {
-        const createdToken = await tx.refreshTokens.create({
-            data: {
-                token: (0, uuid_1.v4)(),
-                userId,
-                expiresAt,
-                userAgent: '',
-                ipAddress: ''
-            }
+    try {
+        // Create and update refresh token in a transaction
+        return await index_1.prisma.$transaction(async (tx) => {
+            // First create the token record
+            const createdToken = await tx.refreshTokens.create({
+                data: {
+                    token: (0, uuid_1.v4)(), // Temporary token
+                    userId,
+                    expiresAt,
+                    userAgent: '',
+                    ipAddress: ''
+                }
+            });
+            // Create JWT with the token ID
+            const refreshToken = jsonwebtoken_1.default.sign({ userId, tokenId: createdToken.id }, jwtRefreshSecret, { expiresIn: REFRESH_TOKEN_EXPIRY });
+            // Update the token record with the JWT
+            await tx.refreshTokens.update({
+                where: { id: createdToken.id },
+                data: { token: refreshToken }
+            });
+            return { accessToken, refreshToken };
         });
-        const refreshToken = jsonwebtoken_1.default.sign({ userId, tokenId: createdToken.id }, process.env.JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_EXPIRY });
-        await tx.refreshTokens.update({
-            where: { id: createdToken.id },
-            data: { token: refreshToken }
-        });
-        return { accessToken, refreshToken };
-    });
+    }
+    catch (error) {
+        console.error('Token generation error:', error);
+        throw error;
+    }
 };
 // Login controller
 const login = async (req, res) => {
@@ -42,19 +68,12 @@ const login = async (req, res) => {
         return;
     }
     const { accessToken, refreshToken } = await generateTokens(user.id, rememberMe);
-    await index_1.prisma.refreshTokens.update({
-        where: { token: refreshToken },
-        data: {
-            userAgent: req.headers['user-agent'] || '',
-            ipAddress: req.ip
-        }
+    const cookieOptions = createCookieOptions(rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000);
+    console.log('Setting login cookie:', {
+        rememberMe,
+        options: cookieOptions
     });
-    res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
-    });
+    res.cookie('refresh_token', refreshToken, cookieOptions);
     res.json({
         user: {
             id: user.id,
@@ -82,12 +101,9 @@ const register = async (req, res) => {
         }
     });
     const { accessToken, refreshToken } = await generateTokens(user.id);
-    res.cookie('refresh_token', refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
-        maxAge: 24 * 60 * 60 * 1000
-    });
+    const cookieOptions = createCookieOptions(24 * 60 * 60 * 1000);
+    console.log('Setting register cookie:', { options: cookieOptions });
+    res.cookie('refresh_token', refreshToken, cookieOptions);
     res.status(201).json({
         user: {
             id: user.id,
@@ -100,13 +116,24 @@ const register = async (req, res) => {
 exports.register = register;
 // Refresh token controller
 const refresh = async (req, res) => {
+    console.log('Refresh request received:', {
+        cookies: req.cookies,
+        headers: req.headers
+    });
     const refreshToken = req.cookies.refresh_token;
     if (!refreshToken) {
+        console.log('No refresh token in cookies');
         res.status(401).json({ message: 'No refresh token provided' });
         return;
     }
     try {
+        if (!process.env.JWT_REFRESH_SECRET) {
+            console.error('JWT_REFRESH_SECRET not configured');
+            res.status(500).json({ message: 'Server configuration error' });
+            return;
+        }
         const decoded = jsonwebtoken_1.default.verify(refreshToken, process.env.JWT_REFRESH_SECRET);
+        console.log('Decoded refresh token:', { userId: decoded.userId, tokenId: decoded.tokenId });
         const storedToken = await index_1.prisma.refreshTokens.findFirst({
             where: {
                 token: refreshToken,
@@ -117,20 +144,23 @@ const refresh = async (req, res) => {
             include: { user: true }
         });
         if (!storedToken) {
+            console.log('No valid stored token found');
             res.status(401).json({ message: 'Invalid refresh token' });
             return;
         }
-        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(decoded.userId, storedToken.expiresAt > new Date(Date.now() + 24 * 60 * 60 * 1000));
+        console.log('Valid stored token found:', { userId: storedToken.userId });
+        const isLongTermToken = storedToken.expiresAt > new Date(Date.now() + 24 * 60 * 60 * 1000);
+        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(decoded.userId, isLongTermToken);
         await index_1.prisma.refreshTokens.update({
             where: { id: storedToken.id },
             data: { isRevoked: true }
         });
-        res.cookie('refresh_token', newRefreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
-            maxAge: storedToken.expiresAt.getTime() - Date.now()
+        const cookieOptions = createCookieOptions(isLongTermToken ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000);
+        console.log('Setting new refresh token cookie:', {
+            isLongTermToken,
+            options: cookieOptions
         });
+        res.cookie('refresh_token', newRefreshToken, cookieOptions);
         res.json({
             user: {
                 id: storedToken.user.id,
@@ -141,8 +171,8 @@ const refresh = async (req, res) => {
         });
     }
     catch (error) {
+        console.error('Token refresh error:', error);
         res.status(401).json({ message: 'Invalid refresh token' });
-        return;
     }
 };
 exports.refresh = refresh;
@@ -155,7 +185,7 @@ const logout = async (req, res) => {
             data: { isRevoked: true }
         });
     }
-    res.clearCookie('refresh_token');
+    res.clearCookie('refresh_token', createCookieOptions(0));
     res.json({ message: 'Logged out successfully' });
 };
 exports.logout = logout;
@@ -173,7 +203,7 @@ const revokeAllSessions = async (req, res) => {
         },
         data: { isRevoked: true }
     });
-    res.clearCookie('refresh_token');
+    res.clearCookie('refresh_token', createCookieOptions(0));
     res.json({ message: 'All sessions revoked successfully' });
 };
 exports.revokeAllSessions = revokeAllSessions;

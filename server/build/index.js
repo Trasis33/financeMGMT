@@ -6,12 +6,22 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.prisma = void 0;
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
+const cookie_parser_1 = __importDefault(require("cookie-parser"));
 const dotenv_1 = __importDefault(require("dotenv"));
 const client_1 = require("@prisma/client");
+const library_1 = require("@prisma/client/runtime/library");
 const auth_1 = __importDefault(require("./routes/auth"));
 const transactions_1 = __importDefault(require("./routes/transactions"));
 const splitExpenses_1 = __importDefault(require("./routes/splitExpenses"));
+const users_1 = __importDefault(require("./routes/users"));
 dotenv_1.default.config();
+// Validate required environment variables
+if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET is required in environment variables');
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+    throw new Error('JWT_REFRESH_SECRET is required in environment variables');
+}
 const app = (0, express_1.default)();
 exports.prisma = new client_1.PrismaClient({
     log: ['query', 'info', 'warn', 'error']
@@ -23,12 +33,13 @@ const corsOptions = {
         : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    exposedHeaders: ['Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+    exposedHeaders: ['Authorization', 'Set-Cookie'],
     maxAge: 86400 // 24 hours in seconds
 };
 app.use((0, cors_1.default)(corsOptions));
 app.use(express_1.default.json());
+app.use((0, cookie_parser_1.default)());
 // Pre-flight requests
 app.options('*', (0, cors_1.default)(corsOptions));
 // Health check endpoint
@@ -39,10 +50,11 @@ app.get('/health', (_req, res) => {
 app.use('/api/auth', auth_1.default);
 app.use('/api/transactions', transactions_1.default);
 app.use('/api/split-expenses', splitExpenses_1.default);
+app.use('/api/users', users_1.default);
 // Error handling middleware
 const errorHandler = (err, req, res, next) => {
     console.error('Error:', err);
-    if (err instanceof client_1.Prisma.PrismaClientKnownRequestError) {
+    if (err instanceof library_1.PrismaClientKnownRequestError) {
         switch (err.code) {
             case 'P2002':
                 res.status(409).json({

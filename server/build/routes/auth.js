@@ -16,7 +16,18 @@ const asyncHandler = (handler) => {
         }
     };
 };
+// Debug middleware for auth routes
+const debugAuth = (req, res, next) => {
+    console.log('Auth request:', {
+        path: req.path,
+        method: req.method,
+        cookies: req.cookies,
+        headers: req.headers
+    });
+    next();
+};
 // Public routes
+router.use(debugAuth);
 router.post('/login', asyncHandler(auth_1.login));
 router.post('/register', asyncHandler(auth_1.register));
 router.get('/refresh', asyncHandler(auth_1.refresh));

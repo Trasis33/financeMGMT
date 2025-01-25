@@ -31,6 +31,32 @@
           required
         />
 
+        <!-- Payer Selection -->
+        <div class="mb-6">
+          <label for="paidBy" class="block text-sm font-medium text-gray-700">Who Paid?</label>
+          <select
+            id="paidBy"
+            v-model="form.paidById"
+            class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+            required
+          >
+            <option value="" disabled>Select who paid</option>
+            <option
+              v-for="user in availableUsers"
+              :key="user.id"
+              :value="user.id"
+            >
+              {{ user.name }}
+            </option>
+          </select>
+          <p
+            v-if="errors.paidById"
+            class="mt-2 text-sm text-red-600"
+          >
+            {{ errors.paidById }}
+          </p>
+        </div>
+
         <!-- Shares -->
         <div>
           <div class="flex justify-between items-center mb-4">
@@ -227,7 +253,8 @@ const form = ref({
   amount: '',
   date: new Date().toISOString().split('T')[0], // Add date field
   participantIds: [] as number[],
-  shares: [] as Array<{ userId: number; amount: string }>
+  shares: [] as Array<{ userId: number; amount: string }>,
+  paidById: 0
 })
 const errors = ref<Record<string, string>>({})
 const errorMessage = ref('')
@@ -298,7 +325,8 @@ onMounted(async () => {
         amount: splitExpense.amount.toString(),
         date: new Date(splitExpense.date).toISOString().split('T')[0],
         participantIds: shares.map(s => Number(s.userId)),
-        shares: shares
+        shares: shares,
+        paidById: Number(splitExpense.paidById)
       }
     } catch (error) {
       console.error('Error loading split expense:', error)
@@ -336,9 +364,8 @@ const splitEvenly = () => {
 
   const shareCount = form.value.shares.length
   const evenShare = amount / shareCount
-  const roundedShare = Math.round(evenShare * 100) / 100 // Proper rounding
+  const roundedShare = Math.round(evenShare * 100) / 100
   
-  // Handle remainder distribution
   const totalRounded = roundedShare * shareCount
   const remainder = amount - totalRounded
   
@@ -364,6 +391,12 @@ const validateForm = () => {
 
   if (!totalAmount || totalAmount <= 0) {
     errors.value.amount = 'Please enter a valid amount'
+    isValid = false
+  }
+
+  // Validate payer
+  if (!form.value.paidById) {
+    errors.value.paidById = 'Please select who paid'
     isValid = false
   }
 
@@ -399,6 +432,12 @@ const validateForm = () => {
     isValid = false
   }
 
+  // Ensure payer is a participant
+  if (!form.value.shares.some(share => share.userId === Number(form.value.paidById))) {
+    errorMessage.value = 'The person who paid must be included in the split'
+    isValid = false
+  }
+
   return isValid
 }
 
@@ -412,14 +451,15 @@ const handleSubmit = async () => {
   try {
     const totalAmount = Number(form.value.amount);
     const sharesArray = form.value.shares.map(share => ({
-      userId: Number(share.userId), // Ensure userId is a number
+      userId: Number(share.userId),
       amount: Number(share.amount)
     }));
     
     console.log('Form data before submission:', {
       description: form.value.description,
       amount: totalAmount,
-      shares: sharesArray
+      shares: sharesArray,
+      paidById: form.value.paidById
     });
 
     // Prepare API payload
@@ -427,6 +467,7 @@ const handleSubmit = async () => {
       description: form.value.description,
       amount: totalAmount,
       date: form.value.date,
+      paidById: Number(form.value.paidById),
       participantIds: sharesArray.map(share => share.userId),
       shares: Object.fromEntries(
         sharesArray.map(share => [

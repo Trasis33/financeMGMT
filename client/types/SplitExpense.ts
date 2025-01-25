@@ -31,6 +31,7 @@ export interface CreateSplitExpenseData {
   date: string;
   participantIds: (string | number)[];
   shares: { [userId: string | number]: number; };
+  paidById: string | number; // Add paidById field
 }
 
 export interface Owes {
@@ -58,4 +59,5 @@ export interface SimpleSplitExpense {
   amount: number;
   date: string;
   participants: Participant[];
+  paidById: string | number;
 }

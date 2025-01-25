@@ -17,6 +17,7 @@ model User {
   updatedAt             DateTime                @updatedAt
   transactions          Transaction[]
   createdSplitExpenses  SplitExpense[]         @relation("Creator")
+  paidSplitExpenses     SplitExpense[]         @relation("Payer")
   splitExpenses         SplitExpenseParticipant[]
   refreshTokens         RefreshTokens[]          // Add this relation
 }
@@ -53,7 +54,9 @@ model SplitExpense {
   amount        Float
   date          DateTime
   creatorId     Int
+  paidById      Int                      // Who paid for the expense
   creator       User                     @relation("Creator", fields: [creatorId], references: [id], onDelete: Cascade)
+  paidBy        User                     @relation("Payer", fields: [paidById], references: [id], onDelete: Cascade)
   participants  SplitExpenseParticipant[]
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt

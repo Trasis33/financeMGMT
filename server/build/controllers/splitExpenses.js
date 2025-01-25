@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteSplitExpense = exports.updateSplitExpense = exports.createSplitExpense = exports.getSplitExpense = exports.getSplitExpenses = void 0;
+exports.getBalances = exports.deleteSplitExpense = exports.updateSplitExpense = exports.createSplitExpense = exports.getSplitExpense = exports.getSplitExpenses = void 0;
 const index_1 = require("../index");
 const getSplitExpenses = async (req, res, next) => {
     try {
@@ -14,16 +14,15 @@ const getSplitExpenses = async (req, res, next) => {
                 }
             },
             include: {
-                creator: {
-                    select: { id: true, name: true, email: true }
-                },
                 participants: {
                     include: {
                         user: {
                             select: { id: true, name: true, email: true }
                         }
                     }
-                }
+                },
+                creator: true,
+                paidBy: true
             },
             orderBy: { date: 'desc' }
         });
@@ -48,16 +47,15 @@ const getSplitExpense = async (req, res, next) => {
                 }
             },
             include: {
-                creator: {
-                    select: { id: true, name: true, email: true }
-                },
                 participants: {
                     include: {
                         user: {
                             select: { id: true, name: true, email: true }
                         }
                     }
-                }
+                },
+                creator: true,
+                paidBy: true
             }
         });
         if (!expense) {
@@ -73,7 +71,7 @@ const getSplitExpense = async (req, res, next) => {
 exports.getSplitExpense = getSplitExpense;
 const createSplitExpense = async (req, res, next) => {
     try {
-        const { description, amount, date, participantIds, shares } = req.body;
+        const { description, amount, date, participantIds, shares, paidById } = req.body;
         const creatorId = req.userId;
         if (!creatorId) {
             res.status(401).json({ message: 'User not authenticated' });
@@ -90,6 +88,11 @@ const createSplitExpense = async (req, res, next) => {
         });
         if (participants.length !== uniqueParticipantIds.length) {
             res.status(400).json({ message: 'One or more participants not found' });
+            return;
+        }
+        // Validate payer exists and is a participant
+        if (!uniqueParticipantIds.includes(paidById)) {
+            res.status(400).json({ message: 'Payer must be a participant in the expense' });
             return;
         }
         // Calculate shares
@@ -112,6 +115,7 @@ const createSplitExpense = async (req, res, next) => {
                 amount,
                 date: new Date(date),
                 creatorId,
+                paidById,
                 participants: {
                     create: uniqueParticipantIds.map(userId => ({
                         userId,
@@ -120,16 +124,15 @@ const createSplitExpense = async (req, res, next) => {
                 }
             },
             include: {
-                creator: {
-                    select: { id: true, name: true, email: true }
-                },
                 participants: {
                     include: {
                         user: {
                             select: { id: true, name: true, email: true }
                         }
                     }
-                }
+                },
+                creator: true,
+                paidBy: true
             }
         });
         res.status(201).json({ expense: splitExpense });
@@ -142,7 +145,7 @@ exports.createSplitExpense = createSplitExpense;
 const updateSplitExpense = async (req, res, next) => {
     try {
         const { id } = req.params;
-        const { description, amount, date, participantIds, shares } = req.body;
+        const { description, amount, date, participantIds, shares, paidById } = req.body;
         const userId = req.userId;
         if (!userId) {
             res.status(401).json({ message: 'User not authenticated' });
@@ -163,7 +166,7 @@ const updateSplitExpense = async (req, res, next) => {
             return;
         }
         // Prepare update data
-        const updateData = Object.assign(Object.assign(Object.assign({}, (description && { description })), (amount && { amount })), (date && { date: new Date(date) }));
+        const updateData = Object.assign(Object.assign(Object.assign(Object.assign({}, (description && { description })), (amount && { amount })), (date && { date: new Date(date) })), (paidById && { paidById }));
         // Update participants if provided
         if (participantIds) {
             const uniqueParticipantIds = [...new Set([...participantIds, userId])];
@@ -177,6 +180,11 @@ const updateSplitExpense = async (req, res, next) => {
             });
             if (participants.length !== uniqueParticipantIds.length) {
                 res.status(400).json({ message: 'One or more participants not found' });
+                return;
+            }
+            // If paidById is being updated, validate they're a participant
+            if (paidById && !uniqueParticipantIds.includes(paidById)) {
+                res.status(400).json({ message: 'Payer must be a participant in the expense' });
                 return;
             }
             // Calculate shares
@@ -208,16 +216,15 @@ const updateSplitExpense = async (req, res, next) => {
             where: { id: parseInt(id) },
             data: updateData,
             include: {
-                creator: {
-                    select: { id: true, name: true, email: true }
-                },
                 participants: {
                     include: {
                         user: {
                             select: { id: true, name: true, email: true }
                         }
                     }
-                }
+                },
+                creator: true,
+                paidBy: true
             }
         });
         res.json({ expense: updatedExpense });
@@ -257,3 +264,84 @@ const deleteSplitExpense = async (req, res, next) => {
     }
 };
 exports.deleteSplitExpense = deleteSplitExpense;
+const getBalances = async (req, res, next) => {
+    try {
+        const userId = req.userId;
+        const expenses = await index_1.prisma.splitExpense.findMany({
+            where: {
+                participants: {
+                    some: {
+                        userId
+                    }
+                }
+            },
+            select: {
+                id: true,
+                amount: true,
+                paidById: true,
+                participants: {
+                    include: {
+                        user: {
+                            select: {
+                                id: true,
+                                name: true
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        // Calculate balances
+        const balances = new Map();
+        // Initialize balances for all users involved in expenses
+        expenses.forEach((expense) => {
+            expense.participants.forEach((participant) => {
+                const { id: userId, name: userName } = participant.user;
+                if (!balances.has(userId)) {
+                    balances.set(userId, {
+                        userId,
+                        userName,
+                        netBalance: 0,
+                        owes: [],
+                        isOwed: []
+                    });
+                }
+            });
+        });
+        // Calculate amounts owed/owing
+        expenses.forEach((expense) => {
+            const paidByUserId = expense.paidById;
+            const totalAmount = expense.amount;
+            expense.participants.forEach((participant) => {
+                const participantShare = totalAmount * participant.share;
+                const participantUserId = participant.userId;
+                if (participantUserId !== paidByUserId) {
+                    // Update the participant's balance (they owe the payer)
+                    const participantBalance = balances.get(participantUserId);
+                    participantBalance.netBalance -= participantShare;
+                    // Update the payer's balance (they are owed by the participant)
+                    const payerBalance = balances.get(paidByUserId);
+                    payerBalance.netBalance += participantShare;
+                    // Record the debt relationship
+                    participantBalance.owes.push({
+                        userId: paidByUserId,
+                        userName: balances.get(paidByUserId).userName,
+                        amount: participantShare
+                    });
+                    payerBalance.isOwed.push({
+                        userId: participantUserId,
+                        userName: participantBalance.userName,
+                        amount: participantShare
+                    });
+                }
+            });
+        });
+        // Convert Map to array and round numbers
+        const balanceArray = Array.from(balances.values()).map(balance => (Object.assign(Object.assign({}, balance), { netBalance: Math.round(balance.netBalance * 100) / 100, owes: balance.owes.map(debt => (Object.assign(Object.assign({}, debt), { amount: Math.round(debt.amount * 100) / 100 }))), isOwed: balance.isOwed.map(credit => (Object.assign(Object.assign({}, credit), { amount: Math.round(credit.amount * 100) / 100 }))) })));
+        res.json(balanceArray);
+    }
+    catch (error) {
+        next(error);
+    }
+};
+exports.getBalances = getBalances;

@@ -15,6 +15,8 @@ router.use(auth_1.authMiddleware);
 // Basic routes
 router.get('/', asyncHandler(splitExpenses_1.getSplitExpenses));
 router.post('/', asyncHandler(splitExpenses_1.createSplitExpense));
+// Balances route must come before ID-based routes to avoid parameter collision
+router.get('/balances', asyncHandler(splitExpenses_1.getBalances));
 // ID-based routes
 router.get('/:id', asyncHandler(splitExpenses_1.getSplitExpense));
 router.put('/:id', asyncHandler(splitExpenses_1.updateSplitExpense));
