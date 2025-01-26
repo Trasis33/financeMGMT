@@ -52,7 +52,7 @@
             </option>
           </select>
           <p
-            v-if="errors.paidById"  
+            v-if="errors.paidById"
             class="mt-2 text-sm text-red-600"
           >
             {{ errors.paidById }}
@@ -66,7 +66,8 @@
             <button
               type="button"
               @click="addShare"
-              class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+              class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-full shadow-sm text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:hover:bg-gray-400"
+              :disabled="!canAddMoreUsers"
             >
               Add Person
             </button>
@@ -288,13 +289,19 @@ const loadUsers = async () => {
 onMounted(async () => {
   await loadUsers()
 
-  // Initialize with current user if creating new
+  // Initialize with current user and another user if creating new
   if (!isEdit.value && currentUser.value?.id) {
-    form.value.shares = [{
-      userId: currentUser.value.id,
-      amount: ''
-    }]
-    form.value.paidById = defaultSelectedUserId.value;
+    const otherUser = availableUsers.value.find(user => user.id !== currentUser.value.id);
+    if (otherUser) {
+      form.value.shares = [
+        { userId: currentUser.value.id, amount: '' },
+        { userId: otherUser.id, amount: '' }
+      ];
+      form.value.paidById = defaultSelectedUserId.value;
+    } else {
+      form.value.shares = [{ userId: currentUser.value.id, amount: '' }];
+      form.value.paidById = defaultSelectedUserId.value;
+    }
   }
 
   if (isEdit.value) {
@@ -347,11 +354,17 @@ const isUserSelected = (userId: number, currentIndex: number) => {
 
 // Add new share
 const addShare = () => {
-  if (availableUsers.value.length > 0) {
+  const currentUserIds = form.value.shares.map(share => share.userId);
+  const availableUser = availableUsers.value.find(user => !currentUserIds.includes(user.id));
+  
+  if (availableUser) {
     form.value.shares.push({
-      userId: availableUsers.value[0].id, // Set default to first available user
+      userId: availableUser.id,
       amount: ''
-    })
+    });
+    if (form.value.amount) {
+      splitEvenly(); // Automatically split the amount evenly when adding a new share
+    }
   }
 }
 
@@ -502,5 +515,12 @@ const handleSubmit = async () => {
 // Computed property to set the default selected user
 const defaultSelectedUserId = computed(() => {
   return currentUser.value?.id || 0;
+});
+
+// Computed property to check if more users can be added
+const canAddMoreUsers = computed(() => {
+  if (availableUsers.value.length === 0) return false;
+  const currentUserIds = form.value.shares.map(share => share.userId);
+  return availableUsers.value.some(user => !currentUserIds.includes(user.id));
 });
 </script>
