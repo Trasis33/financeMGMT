@@ -38,6 +38,7 @@
             id="paidBy"
             v-model="form.paidById"
             class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-primary-500 focus:border-primary-500 sm:text-sm rounded-md"
+            :disabled="!availableUsers.length"
             required
           >
             <option value="" disabled>Select who paid</option>
@@ -45,12 +46,13 @@
               v-for="user in availableUsers"
               :key="user.id"
               :value="user.id"
+              :selected="defaultSelectedUserId === user.id"
             >
               {{ user.name }}
             </option>
           </select>
           <p
-            v-if="errors.paidById"
+            v-if="errors.paidById"  
             class="mt-2 text-sm text-red-600"
           >
             {{ errors.paidById }}
@@ -292,6 +294,7 @@ onMounted(async () => {
       userId: currentUser.value.id,
       amount: ''
     }]
+    form.value.paidById = defaultSelectedUserId.value;
   }
 
   if (isEdit.value) {
@@ -309,7 +312,7 @@ onMounted(async () => {
 
       const data = await response.json()
       const splitExpense: SimpleSplitExpense = data.expense;
-      
+
       if (!splitExpense) throw new Error('Split expense not found')
 
       console.log('Loaded split expense:', splitExpense) // Debug log
@@ -365,13 +368,13 @@ const splitEvenly = () => {
   const shareCount = form.value.shares.length
   const evenShare = amount / shareCount
   const roundedShare = Math.round(evenShare * 100) / 100
-  
+
   const totalRounded = roundedShare * shareCount
   const remainder = amount - totalRounded
-  
+
   form.value.shares.forEach((share, index) => {
-    const adjustedAmount = index === 0 ? 
-      roundedShare + remainder : 
+    const adjustedAmount = index === 0 ?
+      roundedShare + remainder :
       roundedShare
     share.amount = adjustedAmount.toFixed(2)
   })
@@ -395,8 +398,8 @@ const validateForm = () => {
   }
 
   // Validate payer
-  if (!form.value.paidById) {
-    errors.value.paidById = 'Please select who paid'
+  if (!form.value.paidById || !availableUsers.value.some(user => user.id === form.value.paidById)) {
+    errors.value.paidById = 'Please select a valid user who paid'
     isValid = false
   }
 
@@ -407,7 +410,7 @@ const validateForm = () => {
       errors.value[`shares.${index}.userId`] = 'Please select a user'
       isValid = false
     }
-    
+
     if (uniqueUserIds.has(share.userId)) {
       errors.value[`shares.${index}.userId`] = 'User already selected'
       isValid = false
@@ -454,7 +457,7 @@ const handleSubmit = async () => {
       userId: Number(share.userId),
       amount: Number(share.amount)
     }));
-    
+
     console.log('Form data before submission:', {
       description: form.value.description,
       amount: totalAmount,
@@ -495,4 +498,9 @@ const handleSubmit = async () => {
     isLoading.value = false
   }
 }
+
+// Computed property to set the default selected user
+const defaultSelectedUserId = computed(() => {
+  return currentUser.value?.id || 0;
+});
 </script>
