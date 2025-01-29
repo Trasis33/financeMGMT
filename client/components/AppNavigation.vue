@@ -181,7 +181,8 @@ const user = useState<User>('user')
 const navigationItems = [
   { name: 'Dashboard', path: '/dashboard' },
   { name: 'Transactions', path: '/transactions' },
-  { name: 'Split Expenses', path: '/split-expenses' }
+  { name: 'Split Expenses', path: '/split-expenses' },
+  { name: 'Bills', path: '/bills' }
 ]
 
 const isUserMenuOpen = ref(false)

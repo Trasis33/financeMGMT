@@ -9,6 +9,7 @@ import {
 import { authMiddleware } from '../middleware/auth';
 import { prisma } from '../index';
 import { TypedRequestBody } from '../types/express';
+import jwt from 'jsonwebtoken';
 
 const router = Router();
 
@@ -48,7 +49,45 @@ const debugAuth: RequestHandler = (req, res, next) => {
 router.use(debugAuth);
 router.post('/login', asyncHandler(login));
 router.post('/register', asyncHandler(register));
-router.get('/refresh', asyncHandler(refresh));
+
+// Token refresh route
+router.post('/refresh', async (req: Request, res: Response) => {
+  try {
+    const userId = req.user.userId;
+    
+    // Get user data
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Generate new token
+    const token = jwt.sign(
+      { userId: user.id },
+      process.env.JWT_SECRET!,
+      { expiresIn: '15m' }
+    );
+
+    // Send response with new token and user data
+    res.json({
+      token,
+      user
+    });
+  } catch (error) {
+    console.error('Token refresh error:', error);
+    res.status(500).json({ error: 'Failed to refresh token' });
+  }
+});
 
 // Protected routes (require authentication)
 router.use(authMiddleware);

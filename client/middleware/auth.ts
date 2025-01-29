@@ -1,26 +1,31 @@
-import type { NavigationGuardNext, RouteLocationNormalized } from 'vue-router'
+import { defineNuxtRouteMiddleware, navigateTo } from '#app'
 
-export default defineNuxtRouteMiddleware((to) => {
-  const { isAuthenticated, isInitialized } = useAuth()
-  console.log('Auth middleware:', { 
-    path: to.path, 
-    isAuthenticated: isAuthenticated.value, 
-    isInitialized: isInitialized.value 
-  })
+// Define public pages that don't require authentication
+const publicPages = ['/login', '/register', '/forgot-password']
 
-  // Only run on client side after auth initialization
-  if (process.client && isInitialized.value) {
-    const publicPages = ['/login', '/register']
-    const isPublicPage = publicPages.includes(to.path)
+export default defineNuxtRouteMiddleware(async (to) => {
+  const { isAuthenticated, isInitialized, initAuth } = useAuth()
 
-    if (!isPublicPage && !isAuthenticated.value) {
-      console.log('Redirecting to login - not authenticated')
-      return navigateTo('/login')
-    }
-    
-    if (isPublicPage && isAuthenticated.value) {
-      console.log('Redirecting to dashboard - already authenticated')
-      return navigateTo('/dashboard')
-    }
+  // Initialize auth if not already initialized
+  if (!isInitialized.value) {
+    await initAuth()
+  }
+
+  const path = to.path
+  const isPublicPage = publicPages.includes(path)
+  const needsAuth = !isPublicPage
+
+  console.log('Auth middleware:', { path, isAuthenticated: isAuthenticated.value, isPublicPage, needsAuth })
+
+  // If page requires auth and user is not authenticated
+  if (needsAuth && !isAuthenticated.value) {
+    console.log('Redirecting to login - authentication required')
+    return navigateTo('/login')
+  }
+
+  // If user is authenticated and tries to access login/register
+  if (isAuthenticated.value && isPublicPage) {
+    console.log('Redirecting to dashboard - already authenticated')
+    return navigateTo('/dashboard')
   }
 })

@@ -19,7 +19,10 @@ model User {
   createdSplitExpenses  SplitExpense[]         @relation("Creator")
   paidSplitExpenses     SplitExpense[]         @relation("Payer")
   splitExpenses         SplitExpenseParticipant[]
-  refreshTokens         RefreshTokens[]          // Add this relation
+  refreshTokens         RefreshTokens[]
+  createdBills          Bill[]                  @relation("BillCreator")
+  billParticipations    BillParticipant[]
+  billPayments         BillPayment[]
 }
 
 model RefreshTokens {
@@ -31,8 +34,8 @@ model RefreshTokens {
   createdAt   DateTime @default(now())
   lastUsedAt  DateTime @default(now())
   isRevoked   Boolean  @default(false)
-  userAgent   String?  // Store browser/device info
-  ipAddress   String?  // Store IP for security tracking
+  userAgent   String?
+  ipAddress   String?
 }
 
 model Transaction {
@@ -54,7 +57,7 @@ model SplitExpense {
   amount        Float
   date          DateTime
   creatorId     Int
-  paidById      Int                      // Who paid for the expense
+  paidById      Int
   creator       User                     @relation("Creator", fields: [creatorId], references: [id], onDelete: Cascade)
   paidBy        User                     @relation("Payer", fields: [paidById], references: [id], onDelete: Cascade)
   participants  SplitExpenseParticipant[]
@@ -66,12 +69,55 @@ model SplitExpenseParticipant {
   id             Int          @id @default(autoincrement())
   splitExpenseId Int
   userId         Int
-  share          Float       // Share of the expense (e.g., 0.5 for 50%)
+  share          Float
   splitExpense   SplitExpense @relation(fields: [splitExpenseId], references: [id], onDelete: Cascade)
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  settled        Boolean      @default(false)  // Add this line
+  settled        Boolean      @default(false)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@unique([splitExpenseId, userId])
+}
+
+model Bill {
+  id              Int               @id @default(autoincrement())
+  description     String
+  amount          Float
+  dueDate         DateTime
+  creatorId       Int
+  isRecurring     Boolean          @default(false)
+  recurringPeriod String?          // 'MONTHLY', 'YEARLY', etc.
+  category        String           @default("OTHER")
+  notes           String?
+  creator         User             @relation("BillCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  participants    BillParticipant[]
+  payments        BillPayment[]
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+}
+
+model BillParticipant {
+  id        Int      @id @default(autoincrement())
+  billId    Int
+  userId    Int
+  share     Float    // Percentage share of the bill (e.g., 0.5 for 50%)
+  bill      Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([billId, userId])
+}
+
+model BillPayment {
+  id          Int      @id @default(autoincrement())
+  billId      Int
+  userId      Int
+  amount      Float
+  paymentDate DateTime @default(now())
+  notes       String?
+  bill        Bill     @relation(fields: [billId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

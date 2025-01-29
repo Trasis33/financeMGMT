@@ -238,17 +238,22 @@ const { data, pending, error, refresh } = useAsyncData<DashboardData>(
     
     const { fetchTransactions, fetchMonthlyReports, getCurrentMonthData } = useTransactions()
 
-    // Fetch data in parallel
-    await Promise.all([
-      fetchTransactions(5),
-      fetchMonthlyReports()
-    ])
+    try {
+      // Fetch data in parallel
+      await Promise.all([
+        fetchTransactions(5),
+        fetchMonthlyReports()
+      ])
 
-    // Return the processed data
-    const transactionState = useState<TransactionState>('transactions')
-    return {
-      transactions: transactionState.value?.transactions || [],
-      monthlyData: getCurrentMonthData.value
+      // Return the processed data
+      const transactionState = useState<TransactionState>('transactions')
+      return {
+        transactions: transactionState.value?.transactions || [],
+        monthlyData: getCurrentMonthData.value
+      }
+    } catch (err) {
+      console.error('Failed to fetch dashboard data:', err)
+      return { transactions: [], monthlyData: { balance: 0, income: 0, expenses: 0 } }
     }
   },
   {

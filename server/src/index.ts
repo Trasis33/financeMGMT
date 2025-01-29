@@ -8,6 +8,7 @@ import authRoutes from './routes/auth';
 import transactionRoutes from './routes/transactions';
 import splitExpenseRoutes from './routes/splitExpenses';
 import usersRoutes from './routes/users';
+import billsRoutes from './routes/bills';
 
 dotenv.config();
 
@@ -24,28 +25,35 @@ export const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error']
 });
 
-// CORS configuration with preflight support
-const corsOptions = {
-  origin: process.env.NODE_ENV === 'production'
-    ? ['https://yourdomain.com']
-    : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002'],
+// CORS configuration
+app.use(cors({
+  origin: 'http://localhost:3000',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
-  exposedHeaders: ['Authorization', 'Set-Cookie'],
-  maxAge: 86400 // 24 hours in seconds
-};
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Authorization']
+}));
 
-app.use(cors(corsOptions));
 app.use(express.json());
 app.use(cookieParser());
 
 // Pre-flight requests
-app.options('*', cors(corsOptions));
+app.options('*', cors({
+  origin: 'http://localhost:3000',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Authorization']
+}));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
+});
+
+// Simple test endpoint
+app.get('/test', (_req, res) => {
+  res.json({ message: 'Server is running' });
 });
 
 // Routes
@@ -53,6 +61,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/split-expenses', splitExpenseRoutes);
 app.use('/api/users', usersRoutes);
+app.use('/api/bills', billsRoutes);
 
 // Error handling middleware
 const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
@@ -82,7 +91,7 @@ const errorHandler: ErrorRequestHandler = (err, req, res, next) => {
 
 app.use(errorHandler);
 
-const PORT = process.env.PORT || 3333;
+const PORT = process.env.PORT || 3000;
 
 async function main() {
   try {

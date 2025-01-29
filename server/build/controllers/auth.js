@@ -18,7 +18,7 @@ const createCookieOptions = (maxAge) => ({
     path: '/'
 });
 // Generate tokens
-const generateTokens = async (userId, rememberMe = false) => {
+const generateTokens = async (userId, rememberMe = false, tokenId) => {
     const jwtSecret = process.env.JWT_SECRET;
     const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
     if (!jwtSecret || !jwtRefreshSecret) {
@@ -74,13 +74,15 @@ const login = async (req, res) => {
         options: cookieOptions
     });
     res.cookie('refresh_token', refreshToken, cookieOptions);
+    // Set access token in Authorization header
+    res.setHeader('Access-Control-Expose-Headers', 'Authorization');
+    res.setHeader('Authorization', `Bearer ${accessToken}`);
     res.json({
         user: {
             id: user.id,
             email: user.email,
             name: user.name
-        },
-        token: accessToken
+        }
     });
 };
 exports.login = login;
@@ -104,13 +106,15 @@ const register = async (req, res) => {
     const cookieOptions = createCookieOptions(24 * 60 * 60 * 1000);
     console.log('Setting register cookie:', { options: cookieOptions });
     res.cookie('refresh_token', refreshToken, cookieOptions);
+    // Set access token in Authorization header
+    res.setHeader('Access-Control-Expose-Headers', 'Authorization');
+    res.setHeader('Authorization', `Bearer ${accessToken}`);
     res.status(201).json({
         user: {
             id: user.id,
             email: user.email,
             name: user.name
-        },
-        token: accessToken
+        }
     });
 };
 exports.register = register;
@@ -150,7 +154,9 @@ const refresh = async (req, res) => {
         }
         console.log('Valid stored token found:', { userId: storedToken.userId });
         const isLongTermToken = storedToken.expiresAt > new Date(Date.now() + 24 * 60 * 60 * 1000);
-        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(decoded.userId, isLongTermToken);
+        // Generate new refresh token
+        const newRefreshTokenId = (0, uuid_1.v4)();
+        const { accessToken, refreshToken: newRefreshToken } = await generateTokens(decoded.userId, isLongTermToken, newRefreshTokenId);
         await index_1.prisma.refreshTokens.update({
             where: { id: storedToken.id },
             data: { isRevoked: true }
@@ -161,13 +167,14 @@ const refresh = async (req, res) => {
             options: cookieOptions
         });
         res.cookie('refresh_token', newRefreshToken, cookieOptions);
+        res.setHeader('Access-Control-Expose-Headers', 'Authorization');
+        res.setHeader('Authorization', `Bearer ${accessToken}`);
         res.json({
             user: {
                 id: storedToken.user.id,
                 email: storedToken.user.email,
                 name: storedToken.user.name
-            },
-            token: accessToken
+            }
         });
     }
     catch (error) {

@@ -50,7 +50,7 @@ interface AuthResponse {
 }
 
 // Generate tokens
-const generateTokens = async (userId: number, rememberMe: boolean = false) => {
+const generateTokens = async (userId: number, rememberMe: boolean = false, tokenId?: string) => {
   const jwtSecret = process.env.JWT_SECRET;
   const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET;
 
@@ -123,13 +123,16 @@ export const login = async (req: Request<{}, {}, LoginRequest>, res: Response): 
 
   res.cookie('refresh_token', refreshToken, cookieOptions);
 
+  // Set access token in Authorization header
+  res.setHeader('Access-Control-Expose-Headers', 'Authorization');
+  res.setHeader('Authorization', `Bearer ${accessToken}`);
+
   res.json({
     user: {
       id: user.id,
       email: user.email,
       name: user.name
-    },
-    token: accessToken
+    }
   });
 };
 
@@ -160,13 +163,16 @@ export const register = async (req: Request<{}, {}, RegisterRequest>, res: Respo
   console.log('Setting register cookie:', { options: cookieOptions });
   res.cookie('refresh_token', refreshToken, cookieOptions);
 
+  // Set access token in Authorization header
+  res.setHeader('Access-Control-Expose-Headers', 'Authorization');
+  res.setHeader('Authorization', `Bearer ${accessToken}`);
+
   res.status(201).json({
     user: {
       id: user.id,
       email: user.email,
       name: user.name
-    },
-    token: accessToken
+    }
   });
 };
 
@@ -214,9 +220,12 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     console.log('Valid stored token found:', { userId: storedToken.userId });
 
     const isLongTermToken = storedToken.expiresAt > new Date(Date.now() + 24 * 60 * 60 * 1000);
+    // Generate new refresh token
+    const newRefreshTokenId = uuidv4();
     const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
       decoded.userId,
-      isLongTermToken
+      isLongTermToken,
+      newRefreshTokenId
     );
 
     await prisma.refreshTokens.update({
@@ -234,14 +243,16 @@ export const refresh = async (req: Request, res: Response): Promise<void> => {
     });
 
     res.cookie('refresh_token', newRefreshToken, cookieOptions);
+    
+    res.setHeader('Access-Control-Expose-Headers', 'Authorization');
+    res.setHeader('Authorization', `Bearer ${accessToken}`);
 
     res.json({
       user: {
         id: storedToken.user.id,
         email: storedToken.user.email,
         name: storedToken.user.name
-      },
-      token: accessToken
+      }
     });
   } catch (error) {
     console.error('Token refresh error:', error);

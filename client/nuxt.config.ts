@@ -1,14 +1,14 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
 export default defineNuxtConfig({
   devtools: { enabled: true },
-  modules: ['@nuxtjs/tailwindcss', '@vueuse/nuxt'],
+  modules: ['@nuxtjs/tailwindcss'],
+
   app: {
     head: {
       title: 'Finance Tracker',
       meta: [
         { charset: 'utf-8' },
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-        { name: 'description', content: 'Personal Finance Management Application' }
+        { name: 'viewport', content: 'width=device-width, initial-scale=1' }
       ]
     },
     pageTransition: {
@@ -16,20 +16,18 @@ export default defineNuxtConfig({
       mode: 'out-in'
     }
   },
+
   runtimeConfig: {
     public: {
-      apiBaseUrl: process.env.API_BASE_URL || 'http://localhost:3333'
+      apiBase: process.env.NUXT_PUBLIC_API_BASE || 'http://localhost:3333'
     }
   },
+
   typescript: {
     strict: true
   },
+
   experimental: {
     payloadExtraction: false
-  },
-  nitro: {
-    routeRules: {
-      '/api/**': { proxy: process.env.API_BASE_URL || 'http://localhost:3333' }
-    }
   }
 })

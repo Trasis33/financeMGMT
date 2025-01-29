@@ -14,6 +14,7 @@ const auth_1 = __importDefault(require("./routes/auth"));
 const transactions_1 = __importDefault(require("./routes/transactions"));
 const splitExpenses_1 = __importDefault(require("./routes/splitExpenses"));
 const users_1 = __importDefault(require("./routes/users"));
+const bills_1 = __importDefault(require("./routes/bills"));
 dotenv_1.default.config();
 // Validate required environment variables
 if (!process.env.JWT_SECRET) {
@@ -46,11 +47,16 @@ app.options('*', (0, cors_1.default)(corsOptions));
 app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
 });
+// Simple test endpoint
+app.get('/test', (_req, res) => {
+    res.json({ message: 'Server is running' });
+});
 // Routes
 app.use('/api/auth', auth_1.default);
 app.use('/api/transactions', transactions_1.default);
 app.use('/api/split-expenses', splitExpenses_1.default);
 app.use('/api/users', users_1.default);
+app.use('/api/bills', bills_1.default);
 // Error handling middleware
 const errorHandler = (err, req, res, next) => {
     console.error('Error:', err);
@@ -75,7 +81,7 @@ const errorHandler = (err, req, res, next) => {
     res.status(status).json({ message });
 };
 app.use(errorHandler);
-const PORT = process.env.PORT || 3333;
+const PORT = process.env.PORT || 3000;
 async function main() {
     try {
         await exports.prisma.$connect();

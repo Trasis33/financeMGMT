@@ -161,13 +161,13 @@
 </template>
 
 <script setup lang="ts">
-import type { SplitExpense, Balance, Owes } from '~/types/SplitExpense'
+import type { SplitExpense, Balance, Owes, Share } from '~/types/SplitExpense'
 
 definePageMeta({
   middleware: ['auth']
 })
 
-const { fetchSplitExpenses, getBalances, settleExpense, deleteSplitExpense } = useSplitExpenses()
+const { fetchSplitExpenses, fetchBalances, settleExpense, deleteSplitExpense } = useSplitExpenses()
 interface User {
   id: string;
   // add other user properties as needed
@@ -185,11 +185,11 @@ const loadData = async () => {
   try {
     const [expensesData, balancesData] = await Promise.all([
       fetchSplitExpenses(),
-      getBalances()
+      fetchBalances()
     ])
-    splitExpenses.value = expensesData.map(expense => ({
+    splitExpenses.value = expensesData.map((expense: SplitExpense) => ({
       ...expense,
-      shares: expense.shares.map(share => ({
+      shares: expense.shares.map((share: Share) => ({
         ...share,
         share: share.amount / expense.amount
       }))

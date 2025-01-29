@@ -1,6 +1,12 @@
 import type { TransactionState, Transaction, CreateTransaction, MonthlyReport } from '../types/TransactionState'
+import { useRuntimeConfig } from '#imports'
+import { useAuth } from './useAuth'
 
 export const useTransactions = () => {
+  const config = useRuntimeConfig()
+  const API_BASE = config.public.apiBase
+  const { getAuthToken } = useAuth()
+
   const state = useState<TransactionState>('transactions', () => {
     // Try to hydrate from local storage with version check
     if (process.client) {
@@ -61,30 +67,37 @@ export const useTransactions = () => {
 
   watch(() => state.value, persistState, { deep: true })
 
+  const getHeaders = () => {
+    const token = getAuthToken()
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json'
+    }
+  }
+
   // Create transaction
   const createTransaction = async (transaction: CreateTransaction) => {
     state.value.isLoading = true
     state.value.error = null
 
     try {
-      const { data, error } = await useApiFetch<{ transaction: Transaction }>(
-        '/api/transactions',
-        {
-          method: 'POST',
-          body: transaction
-        }
-      )
+      const url = new URL(`${API_BASE}/api/transactions`)
+      const response = await $fetch<{ transaction: Transaction }>(url.toString(), {
+        method: 'POST',
+        body: transaction,
+        headers: getHeaders()
+      })
 
-      if (error.value) {
+      if (response.error) {
         throw new Error('Failed to create transaction')
       }
 
-      if (data.value?.transaction) {
-        state.value.transactions = [data.value.transaction, ...state.value.transactions]
+      if (response.transaction) {
+        state.value.transactions = [response.transaction, ...state.value.transactions]
         await fetchMonthlyReports() // Refresh monthly reports
       }
 
-      return data.value?.transaction
+      return response.transaction
     } catch (err) {
       state.value.error = err instanceof Error ? err.message : 'An error occurred'
       console.error('Error creating transaction:', err)
@@ -100,20 +113,18 @@ export const useTransactions = () => {
     state.value.error = null
 
     try {
-      const { data, error } = await useApiFetch<{ transactions: Transaction[] }>(
-        `/api/transactions${limit ? `?limit=${limit}` : ''}`
-      )
-
-      if (error.value) {
-        throw new Error('Failed to fetch transactions')
+      const url = new URL(`${API_BASE}/api/transactions`)
+      if (limit) {
+        url.searchParams.append('limit', limit.toString())
       }
 
-      if (data.value) {
-        state.value.transactions = data.value.transactions || []
-      }
+      const response = await $fetch<{ transactions: Transaction[] }>(url.toString(), {
+        headers: getHeaders()
+      })
+      state.value.transactions = response.transactions
     } catch (err) {
-      state.value.error = err instanceof Error ? err.message : 'An error occurred'
       console.error('Error fetching transactions:', err)
+      state.value.error = 'Failed to fetch transactions'
     } finally {
       state.value.isLoading = false
     }
@@ -125,20 +136,13 @@ export const useTransactions = () => {
     state.value.error = null
 
     try {
-      const { data, error } = await useApiFetch<{ reports: MonthlyReport[] }>(
-        '/api/transactions/reports/monthly'
-      )
-
-      if (error.value) {
-        throw new Error('Failed to fetch monthly reports')
-      }
-
-      if (data.value) {
-        state.value.monthlyReports = data.value.reports || []
-      }
+      const response = await $fetch<{ reports: MonthlyReport[] }>(`${API_BASE}/api/transactions/reports/monthly`, {
+        headers: getHeaders()
+      })
+      state.value.monthlyReports = response.reports
     } catch (err) {
-      state.value.error = err instanceof Error ? err.message : 'An error occurred'
       console.error('Error fetching monthly reports:', err)
+      state.value.error = 'Failed to fetch monthly reports'
     } finally {
       state.value.isLoading = false
     }
@@ -163,14 +167,13 @@ export const useTransactions = () => {
     state.value.error = null
 
     try {
-      const { error } = await useApiFetch(
-        `/api/transactions/${id}`,
-        {
-          method: 'DELETE'
-        }
-      )
+      const url = new URL(`${API_BASE}/api/transactions/${id}`)
+      const response = await $fetch(url.toString(), {
+        method: 'DELETE',
+        headers: getHeaders()
+      })
 
-      if (error.value) {
+      if (response.error) {
         throw new Error('Failed to delete transaction')
       }
 

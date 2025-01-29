@@ -1,4 +1,4 @@
-interface Share {
+export interface Share {
   userId: string | number;
   amount: number;
   share: number;

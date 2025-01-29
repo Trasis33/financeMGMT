@@ -1,25 +1,24 @@
 import type { UseFetchOptions } from 'nuxt/app'
 import type { AuthResponse } from '~/types/auth'
+import { computed } from 'vue'
 
 export function useApiFetch<T = AuthResponse>(path: string, options: UseFetchOptions<T> = {}) {
   const config = useRuntimeConfig()
-  const token = useState('token')
+  const token = useState<string | null>('token', () => null)
 
   // Ensure path starts with /api
   const apiPath = path.startsWith('/api') ? path : `/api${path}`
   
   const defaults: UseFetchOptions<T> = {
-    baseURL: config.public.apiBaseUrl,
+    baseURL: computed((): string => config.public.apiBaseUrl as string),
     key: apiPath,
     credentials: 'include',
     
     // Add authorization header if token exists
-    headers: token.value
-      ? { 
-          Authorization: `Bearer ${token.value}`,
-          ...options.headers as Record<string, string>
-        }
-      : options.headers as Record<string, string>,
+    headers: {
+      ...(token.value ? { Authorization: `Bearer ${token.value}` } : {}),
+      ...(options?.headers || {})
+    },
 
     // Handle token refresh from response headers
     onResponse(_ctx) {
@@ -33,16 +32,25 @@ export function useApiFetch<T = AuthResponse>(path: string, options: UseFetchOpt
         token.value = responseData.token
         if (process.client) {
           localStorage.setItem('auth_token', responseData.token)
+          const expiryDate = new Date()
+          expiryDate.setDate(expiryDate.getDate() + 14)
+          localStorage.setItem('auth_token_expiry', expiryDate.toISOString())
         }
       }
       
-      // Then check headers
-      const newToken = response.headers.get('authorization')?.split(' ')[1]
-      if (newToken && newToken !== token.value) {
-        console.log('New token received in headers')
-        token.value = newToken
-        if (process.client) {
-          localStorage.setItem('auth_token', newToken)
+      // Check both Authorization and authorization headers
+      const authHeader = response.headers.get('Authorization') || response.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const newToken = authHeader.split(' ')[1];
+        if (newToken && newToken !== token.value) {
+          console.log('New token received in headers')
+          token.value = newToken
+          if (process.client) {
+            localStorage.setItem('auth_token', newToken)
+            const expiryDate = new Date()
+            expiryDate.setDate(expiryDate.getDate() + 14)
+            localStorage.setItem('auth_token_expiry', expiryDate.toISOString())
+          }
         }
       }
     },

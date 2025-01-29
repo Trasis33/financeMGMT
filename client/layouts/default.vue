@@ -11,8 +11,15 @@
       </AuthProvider>
     </ClientOnly>
     <main class="py-10">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <slot />
+      <div class="container mx-auto px-4 sm:px-6 lg:px-8">
+        <ClientOnly>
+          <div v-if="isInitialized" class="max-w-7xl mx-auto">
+            <slot />
+          </div>
+          <div v-else class="max-w-7xl mx-auto">
+            <slot />
+          </div>
+        </ClientOnly>
       </div>
     </main>
   </div>
@@ -21,9 +28,4 @@
 <script setup lang="ts">
 import AuthProvider from '@/components/AuthProvider.vue'
 const { isAuthenticated, isInitialized } = useAuth()
-
-// Debug auth state changes
-watch([isAuthenticated, isInitialized], ([auth, init]) => {
-  console.log('Layout auth state changed:', { auth, init })
-})
 </script>

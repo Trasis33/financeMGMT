@@ -234,16 +234,19 @@
 
 <script setup lang="ts">
 import type { Participant, SimpleSplitExpense } from '~/types/SplitExpense'
+import { useAuth } from '~/composables/useAuth'
+import { useRuntimeConfig } from '#imports'
+import { useRoute } from 'vue-router'
 
-const route = useRoute()
-const config = useRuntimeConfig()
-const token = useState('token')
 interface User {
   id: number;
   name: string;
 }
 const currentUser = useState<User>('user')
 const { createSplitExpense, updateSplitExpense } = useSplitExpenses()
+const config = useRuntimeConfig()
+const { getAuthToken } = useAuth()
+const route = useRoute()
 
 definePageMeta({
   middleware: ['auth']
@@ -267,18 +270,19 @@ const availableUsers = ref<User[]>([])
 // Load users for share selection
 const loadUsers = async () => {
   try {
-    const response = await fetch(
-      `${config.public.apiBaseUrl}/api/users`,
-      {
-        headers: {
-          'Authorization': `Bearer ${token.value}`
-        }
+    console.log('Fetching users from:', `${config.public.apiBase}/api/users`)
+    console.log('Auth token:', getAuthToken())
+    
+    const users = await $fetch<User[]>(`${config.public.apiBase}/api/users`, {
+      headers: {
+        'Authorization': `Bearer ${getAuthToken()}`,
+        'Content-Type': 'application/json'
       }
-    )
-
-    if (!response.ok) throw new Error('Failed to fetch users')
-
-    availableUsers.value = await response.json()
+    })
+    
+    console.log('Users response:', users)
+    availableUsers.value = users
+    console.log('Available users:', availableUsers.value)
   } catch (error) {
     console.error('Error loading users:', error)
     errorMessage.value = 'Failed to load users'
@@ -307,10 +311,11 @@ onMounted(async () => {
   if (isEdit.value) {
     try {
       const response = await fetch(
-        `${config.public.apiBaseUrl}/api/split-expenses/${route.params.id}`,
+        `${config.public.apiBase}/api/split-expenses/${route.params.id}`,
         {
           headers: {
-            'Authorization': `Bearer ${token.value}`
+            'Authorization': `Bearer ${getAuthToken()}`,
+            'Content-Type': 'application/json'
           }
         }
       )
