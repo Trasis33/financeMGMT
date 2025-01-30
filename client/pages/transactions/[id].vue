@@ -172,6 +172,8 @@
 
 <script setup lang="ts">
 import type { Transaction } from '~/types/api'
+import { useRuntimeConfig } from '#imports'
+import { useAuth } from '~/composables/useAuth'
 
 definePageMeta({
   layout: 'default',
@@ -183,6 +185,18 @@ const router = useRouter()
 
 interface TransactionResponse {
   transaction: Transaction;
+}
+
+const config = useRuntimeConfig()
+const API_BASE = config.public.apiBase
+const { getAuthToken } = useAuth()
+
+const getHeaders = () => {
+  const token = getAuthToken()
+  return {
+    'Authorization': `Bearer ${token}`,
+    'Content-Type': 'application/json'
+  }
 }
 
 const isLoadingLocal = ref(false)
@@ -233,14 +247,17 @@ const loadTransaction = async () => {
   localError.value = null
 
   try {
-    const { data, error } = await useApiFetch<TransactionResponse>(`/api/transactions/${transactionId.value}`)
-    
-    if (error.value) {
+    const url = new URL(`${API_BASE}/api/transactions/${transactionId.value}`)
+    const response: TransactionResponse = await $fetch(url.toString(), {
+      headers: getHeaders()
+    })
+
+    if (response.error) {
       throw new Error('Failed to load transaction')
     }
 
-    if (data.value?.transaction) {
-      const transaction = data.value.transaction
+    if (response.transaction) {
+      const transaction = response.transaction
       form.value = {
         type: transaction.type as 'INCOME' | 'EXPENSE',
         amount: transaction.amount.toString(),
@@ -313,7 +330,8 @@ const handleSubmit = async () => {
   localError.value = null
 
   try {
-    const { error } = await useApiFetch(`/api/transactions/${transactionId.value}`, {
+    const url = new URL(`${API_BASE}/api/transactions/${transactionId.value}`)
+    const { error } = await $fetch(url.toString(), {
       method: 'PUT',
       body: {
         type: form.value.type,
@@ -321,10 +339,11 @@ const handleSubmit = async () => {
         date: form.value.date,
         description: form.value.description.trim(),
         category: form.value.category
-      }
+      },
+      headers: getHeaders()
     })
 
-    if (error.value) {
+    if (error) {
       throw new Error('Failed to update transaction')
     }
 
@@ -347,11 +366,13 @@ const handleDelete = async () => {
   localError.value = null
 
   try {
-    const { error } = await useApiFetch(`/api/transactions/${transactionId.value}`, {
-      method: 'DELETE'
+    const url = new URL(`${API_BASE}/api/transactions/${transactionId.value}`)
+    const { error } = await $fetch(url.toString(), {
+      method: 'DELETE',
+      headers: getHeaders()
     })
 
-    if (error.value) {
+    if (error) {
       throw new Error('Failed to delete transaction')
     }
 
@@ -363,4 +384,5 @@ const handleDelete = async () => {
   } finally {
     isLoadingLocal.value = false
   }
-}</script>
+}
+</script>

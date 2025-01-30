@@ -12,9 +12,9 @@
       "type": "node-terminal"
     },
     {
-      "type": "firefox",
+      "type": "msedge",
       "request": "launch",
-      "name": "Launch Firefox",
+      "name": "Launch Edge",
       "url": "http://localhost:3000",
       "webRoot": "${workspaceFolder}",
       "pathMappings": [
@@ -32,7 +32,7 @@
   "compounds": [
     {
       "name": "Run dev",
-      "configurations": ["Run npm dev", "Launch Firefox"],
+      "configurations": ["Run npm dev", "Launch Edge"],
       "stopAll": true
     }
   ]

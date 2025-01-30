@@ -25,3 +25,8 @@ export interface TransactionState {
   isLoading: boolean;
   error: string | null;
 }
+
+export interface TransactionResponse {
+  transaction?: Transaction;
+  error?: string;
+}

@@ -4,7 +4,7 @@
     <ClientOnly>
       <Suspense>
         <template #default>
-          <div v-if="isInitialized">
+          <div v-if="initialized">
             <NuxtPage />
           </div>
           <div v-else class="min-h-screen flex items-center justify-center">
@@ -22,13 +22,16 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue'
 const { initAuth, isInitialized } = useAuth()
+const initialized = ref(false)
 
 // Initialize auth only on client side
 onMounted(async () => {
   if (!isInitialized.value) {
     await initAuth()
   }
+  initialized.value = true
 })
 </script>
 
