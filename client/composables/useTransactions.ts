@@ -88,9 +88,6 @@ export const useTransactions = () => {
         headers: getHeaders()
       })
 
-      if (response.error) {
-        throw new Error('Failed to create transaction')
-      }
 
       if (response.transaction) {
         state.value.transactions = [response.transaction, ...state.value.transactions]
@@ -168,14 +165,10 @@ export const useTransactions = () => {
 
     try {
       const url = new URL(`${API_BASE}/api/transactions/${id}`)
-      const response = await $fetch(url.toString(), {
+      const response = await $fetch<void>(url.toString(), {
         method: 'DELETE',
         headers: getHeaders()
       })
-
-      if (response.error) {
-        throw new Error('Failed to delete transaction')
-      }
 
       state.value.transactions = state.value.transactions.filter(t => t.id !== id)
       await fetchMonthlyReports() // Refresh monthly reports

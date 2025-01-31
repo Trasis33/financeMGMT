@@ -12,7 +12,7 @@ const asyncHandler = (fn: Function) => {
 };
 
 // Apply middleware
-router.use(authMiddleware);
+router.use(asyncHandler(authMiddleware));
 
 // Routes
 router.get('/', asyncHandler(getUsers));

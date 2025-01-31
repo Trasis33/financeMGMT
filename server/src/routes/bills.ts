@@ -30,7 +30,7 @@ const asyncHandler = <P = ParamsDictionary, ResBody = any, ReqBody = any>(
 };
 
 // Protect all routes with auth middleware
-router.use(authMiddleware);
+router.use(asyncHandler(authMiddleware));
 
 // Statistics route must come before other routes to avoid parameter collision
 router.get('/statistics/overview', asyncHandler(billsController.getBillStatistics));

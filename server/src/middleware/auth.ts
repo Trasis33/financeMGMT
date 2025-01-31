@@ -13,7 +13,7 @@ declare global {
   }
 }
 
-interface JwtPayload {
+interface JwtPayload extends jwt.JwtPayload {
   userId: number;
   tokenId?: string;
 }
@@ -66,6 +66,11 @@ export const refreshMiddleware = async (req: Request, res: Response, next: NextF
       
       // Allow refresh if token is expired but not too old (within 24h)
       const now = Math.floor(Date.now() / 1000);
+      if (!decoded.iat) {
+        console.log('Invalid token - missing issued at timestamp');
+        return res.status(401).json({ error: 'Invalid token' });
+      }
+      
       const tokenAge = now - decoded.iat;
       const maxRefreshAge = 24 * 60 * 60; // 24 hours
       

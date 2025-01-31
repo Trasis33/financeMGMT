@@ -20,7 +20,7 @@ type AsyncRequestHandler<P = ParamsDictionary, ResBody = any, ReqBody = any> = (
   req: Request<P, ResBody, ReqBody>,
   res: Response<ResBody>,
   next: NextFunction
-) => Promise<void>;
+) => Promise<void | Response>;
 
 // Create an async middleware wrapper to handle Promise rejections
 const asyncHandler = <P = ParamsDictionary, ResBody = any, ReqBody = any>(
@@ -32,7 +32,7 @@ const asyncHandler = <P = ParamsDictionary, ResBody = any, ReqBody = any>(
 };
 
 // Apply middleware
-router.use(authMiddleware);
+router.use(asyncHandler(authMiddleware));
 
 // Basic routes
 router.get('/', asyncHandler(getSplitExpenses));

@@ -17,7 +17,7 @@ const asyncHandler = (fn: Function) => (req: Request, res: Response, next: NextF
 };
 
 // Apply auth middleware to all transaction routes
-router.use(authMiddleware);
+router.use(asyncHandler(authMiddleware));
 
 // GET /api/transactions
 router.get('/', asyncHandler(getTransactions));

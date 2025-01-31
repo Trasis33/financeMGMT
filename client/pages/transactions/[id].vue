@@ -252,7 +252,7 @@ const loadTransaction = async () => {
       headers: getHeaders()
     })
 
-    if (response.error) {
+    if (!response) {
       throw new Error('Failed to load transaction')
     }
 
@@ -331,7 +331,7 @@ const handleSubmit = async () => {
 
   try {
     const url = new URL(`${API_BASE}/api/transactions/${transactionId.value}`)
-    const { error } = await $fetch(url.toString(), {
+    const response = await $fetch(url.toString(), {
       method: 'PUT',
       body: {
         type: form.value.type,
@@ -343,7 +343,7 @@ const handleSubmit = async () => {
       headers: getHeaders()
     })
 
-    if (error) {
+    if (!response) {
       throw new Error('Failed to update transaction')
     }
 
@@ -367,16 +367,13 @@ const handleDelete = async () => {
 
   try {
     const url = new URL(`${API_BASE}/api/transactions/${transactionId.value}`)
-    const { error } = await $fetch(url.toString(), {
+    const response: unknown = await $fetch(url.toString(), {
       method: 'DELETE',
       headers: getHeaders()
     })
 
-    if (error) {
-      throw new Error('Failed to delete transaction')
-    }
-
-    // Redirect back to transactions list
+    // Successful deletion returns 204 No Content, so response might be empty
+    // Redirect regardless of response content as long as request succeeded
     router.push('/transactions')
   } catch (err) {
     localError.value = err instanceof Error ? err.message : 'Failed to delete transaction'

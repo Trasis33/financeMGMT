@@ -1,4 +1,9 @@
 import { Router, Response, NextFunction, Request, RequestHandler } from 'express';
+import { JwtPayload } from 'jsonwebtoken';
+
+interface AuthRequest extends Request {
+  user?: JwtPayload;
+}
 import {
   login,
   register,
@@ -21,7 +26,7 @@ type AsyncRequestHandler<P = any, ResBody = any, ReqBody = any> = (
   req: Request<P, ResBody, ReqBody>,
   res: Response<ResBody>,
   next: NextFunction
-) => Promise<void>;
+) => Promise<void | Response>;
 
 // Create an async middleware wrapper to handle Promise rejections
 const asyncHandler = (handler: AsyncRequestHandler): RequestHandler => {
@@ -50,11 +55,21 @@ router.use(debugAuth);
 router.post('/login', asyncHandler(login));
 router.post('/register', asyncHandler(register));
 
+
+// Protected routes (require authentication)
+router.use(asyncHandler(authMiddleware));
+
 // Token refresh route
-router.post('/refresh', async (req: Request, res: Response) => {
-  try {
-    const userId = req.user.userId;
+router.post(
+  '/refresh',
+  asyncHandler(async (req: AuthRequest, res: Response) => {
+    const userId = req.user?.userId;
     
+    if (!userId) {
+      res.status(401).json({ error: 'Not authenticated' });
+      return;
+    }
+
     // Get user data
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -68,7 +83,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
     });
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      res.status(404).json({ error: 'User not found' });
+      return;
     }
 
     // Generate new token
@@ -83,14 +99,8 @@ router.post('/refresh', async (req: Request, res: Response) => {
       token,
       user
     });
-  } catch (error) {
-    console.error('Token refresh error:', error);
-    res.status(500).json({ error: 'Failed to refresh token' });
-  }
-});
-
-// Protected routes (require authentication)
-router.use(authMiddleware);
+  })
+);
 router.post('/logout', asyncHandler(logout));
 router.post('/revoke-all', asyncHandler(revokeAllSessions));
 
